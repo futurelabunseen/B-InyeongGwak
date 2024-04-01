@@ -73,8 +73,8 @@ AABCharacterPlayer::AABCharacterPlayer()
 void AABCharacterPlayer::BeginPlay()
 {
 	Super::BeginPlay();
-
 	SetCharacterControl(CurrentCharacterControlType);
+	RandomizeCharacterParts();
 }
 
 void AABCharacterPlayer::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
@@ -188,32 +188,4 @@ void AABCharacterPlayer::Attack()
 	ProcessComboCommand();
 }
 
-void AABCharacterPlayer::RandomizeCharacterParts()
-{
-	for (const auto& Elem : CharacterPartsMap)
-	{
-		const FString& PartName = Elem.Key;
-		USkeletalMeshComponent* PartComponent = Elem.Value;
-		UE_LOG(LogTemp, Warning, TEXT("Checking Part: %s"), *PartName);
 
-		const TArray<TAssetPtr<USkeletalMesh>>* MeshAssetPtrs = AvailableMeshesForParts.Find(PartName);
-		if (MeshAssetPtrs && MeshAssetPtrs->Num() > 0)
-		{
-			int32 RandomIndex = FMath::RandRange(0, MeshAssetPtrs->Num() - 1);
-			TAssetPtr<USkeletalMesh> SelectedMeshAssetPtr = (*MeshAssetPtrs)[RandomIndex];
-			USkeletalMesh* SelectedMesh = SelectedMeshAssetPtr.LoadSynchronous();
-			if (SelectedMesh)
-			{
-				PartComponent->SetSkeletalMesh(SelectedMesh);
-			}
-			else
-			{
-				UE_LOG(LogTemp, Error, TEXT("Failed to load mesh for part: %s"), *PartName);
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("No meshes found for part: %s"), *PartName);
-		}
-	}
-}

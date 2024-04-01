@@ -4,6 +4,7 @@
 #include "ABCharacterControlData.h"
 #include "Animation/AnimMontage.h"
 #include "ABComboActionData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 // Sets default values
 AABCharacterBase::AABCharacterBase()
@@ -30,12 +31,6 @@ AABCharacterBase::AABCharacterBase()
 	GetMesh()->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -100.0f), FRotator(0.0f, -90.0f, 0.0f));
 	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 	GetMesh()->SetCollisionProfileName(TEXT("CharacterMesh"));
-
-	/*static ConstructorHelpers::FObjectFinder<USkeletalMesh> CharacterMeshRef(TEXT("/Script/Engine.SkeletalMesh'/Game/InfinityBladeWarriors/Character/CompleteCharacters/SK_CharM_Cardboard.SK_CharM_Cardboard'"));
-	if (CharacterMeshRef.Object)
-	{
-		GetMesh()->SetSkeletalMesh(CharacterMeshRef.Object);
-	}*/
 
 	static ConstructorHelpers::FClassFinder<UAnimInstance> AnimInstanceClassRef(TEXT("/Game/ArenaBattle/Animation/ABP_ABCharacter.ABP_ABCharacter_C"));
 	if (AnimInstanceClassRef.Class)
@@ -146,44 +141,71 @@ void AABCharacterBase::ComboCheck()
 //TempCode
 void AABCharacterBase::InitializeAvailableBodyParts()
 {
-	TArray<TSoftObjectPtr<USkeletalMesh>> HeadMeshes = {
-		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/SCK_Casual01/Models/MESH_H_A1.MESH_H_A1")))
-	};
-	AvailableMeshesForParts.Add(TEXT("Head"), HeadMeshes);
-
-	TArray<TSoftObjectPtr<USkeletalMesh>> LowerBodyMeshes = {
-		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/SCK_Casual01/Models/MESH_L_00.MESH_L_00"))),
-		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/SCK_Casual01/Models/MESH_L_01.MESH_L_01")))
-	};
-	AvailableMeshesForParts.Add(TEXT("LowerBody"), LowerBodyMeshes);
-
-	TArray<TSoftObjectPtr<USkeletalMesh>> UpperBodyMeshes = {
-		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/SCK_Casual01/Models/MESH_T_00.MESH_T_00"))),
-		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/SCK_Casual01/Models/MESH_T_01.MESH_T_01"))),
-		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/SCK_Casual01/Models/MESH_T_03.MESH_T_03")))
-	};
-	AvailableMeshesForParts.Add(TEXT("UpperBody"), UpperBodyMeshes);
+	LoadMeshesFromDirectory(UpperBodyDir, TEXT("UpperBody"));
+	LoadMeshesFromDirectory(LowerBodyDir, TEXT("LowerBody"));
+	LoadMeshesFromDirectory(HandsDir, TEXT("Hands"));
+	
+	CharacterPartsMap.Add(TEXT("UpperBody"), CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("UpperBody")));
+	CharacterPartsMap.Add(TEXT("LowerBody"), CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("LowerBody")));
+	CharacterPartsMap.Add(TEXT("Hands"), CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Hands")));
+	
+	USkeletalMeshComponent* UpperBody = *CharacterPartsMap.Find(TEXT("UpperBody"));
+	UpperBody->SetupAttachment(GetMesh());
+	UpperBody->SetLeaderPoseComponent(GetMesh(), true);
+	USkeletalMeshComponent* LowerBody = *CharacterPartsMap.Find(TEXT("LowerBody"));
+	LowerBody->SetupAttachment(GetMesh());
+	LowerBody->SetLeaderPoseComponent(GetMesh(), true);
+	USkeletalMeshComponent* Hands = *CharacterPartsMap.Find(TEXT("Hands"));
+	Hands->SetupAttachment(GetMesh());
+	Hands->SetLeaderPoseComponent(GetMesh(), true);
 }
 
-void AABCharacterBase::BeginPlay()
-{
-	Super::BeginPlay();
-	TArray<USceneComponent*> AttachedComponents;
-	GetMesh()->GetChildrenComponents(true, AttachedComponents);
-
-	for (USceneComponent* Component : AttachedComponents)
+void AABCharacterBase::LoadMeshesFromDirectory(const FString& DirectoryPath, const FString& PartType)
+{ TArray<TSoftObjectPtr<USkeletalMesh>> Meshes;
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	FARFilter Filter;
+	Filter.ClassNames.Add(USkeletalMesh::StaticClass()->GetFName());
+	Filter.bRecursivePaths = true;
+	Filter.PackagePaths.Add(*DirectoryPath);
+	TArray<FAssetData> AssetList;
+	AssetRegistryModule.Get().GetAssets(Filter, AssetList);
+	for (const FAssetData& Asset : AssetList)
 	{
-		USkeletalMeshComponent* SkeletalComponent = Cast<USkeletalMeshComponent>(Component);
-		if (SkeletalComponent)
+		TSoftObjectPtr<USkeletalMesh> targetMesh(Asset.ToSoftObjectPath());
+		Meshes.Add(targetMesh);
+	}
+	AvailableMeshesForParts.Add(PartType, Meshes);
+}
+
+void AABCharacterBase::RandomizeCharacterParts()
+{
+	for (const auto& Elem : CharacterPartsMap)
+	{
+		const FString& PartName = Elem.Key;
+		USkeletalMeshComponent* PartComponent = Elem.Value;
+		UE_LOG(LogTemp, Warning, TEXT("Checking Part: %s"), *PartName);
+		const TArray<TSoftObjectPtr<USkeletalMesh>>* MeshAssetPtrs = AvailableMeshesForParts.Find(PartName);
+		if (MeshAssetPtrs && MeshAssetPtrs->Num() > 0)
 		{
-			CharacterPartsMap.Add(SkeletalComponent->GetName(), SkeletalComponent);
+			int32 RandomIndex = FMath::RandRange(0, MeshAssetPtrs->Num() - 1);
+			TSoftObjectPtr<USkeletalMesh> SelectedMeshAssetPtr = (*MeshAssetPtrs)[RandomIndex];
+			USkeletalMesh* SelectedMesh = SelectedMeshAssetPtr.LoadSynchronous();
+			if (SelectedMesh)
+			{
+				PartComponent->SetSkeletalMesh(SelectedMesh);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Log, TEXT("Failed to load mesh for part: %s"), *PartName);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("No meshes found for part: %s"), *PartName);
 		}
 	}
-	for (const auto& Pair : CharacterPartsMap)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Part: %s"), *Pair.Key);
-	}
 }
+
 
 
 

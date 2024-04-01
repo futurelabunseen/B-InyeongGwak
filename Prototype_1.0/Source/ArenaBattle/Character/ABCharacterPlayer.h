@@ -67,7 +67,4 @@ protected:
 	void QuaterMove(const FInputActionValue& Value);
 	void Attack();
 	ECharacterControlType CurrentCharacterControlType;
-
-	//Parts Related
-	void RandomizeCharacterParts();
 };
