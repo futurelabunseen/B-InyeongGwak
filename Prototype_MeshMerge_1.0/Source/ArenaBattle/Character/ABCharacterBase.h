@@ -14,15 +14,30 @@ enum class ECharacterControlType : uint8
 	Quater
 };
 
+UENUM(BlueprintType)
+enum class E_PartsCode : uint8
+{
+	Head UMETA(DisplayName = "Head"),
+	UpperBody UMETA(DisplayName = "UpperBody"),
+	LowerBody UMETA(DisplayName = "LowerBody"),
+	Hands UMETA(DisplayName = "Hands")
+	
+};
+
+
 UCLASS()
 class ARENABATTLE_API AABCharacterBase : public ACharacter
 {
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this character's properties
 	AABCharacterBase();
-	//virtual void RandomizeCharacterParts();
+	UFUNCTION(BlueprintCallable, Category="Character Customization")
+	void IncrementAndSelectPart(E_PartsCode PartCode);
+	UFUNCTION(BlueprintCallable, Category="Character Customization")
+	void MergeCharacterParts();
+
+
 protected:
 	virtual void SetCharacterControlData(const class UABCharacterControlData* CharacterControlData);
 
@@ -54,12 +69,19 @@ protected:
 	FString HandsDir = TEXT("/Game/SCK_Casual01/Models/Hands");
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character Parts")
-	TMap<FString, USkeletalMeshComponent*> CharacterPartsMap;
+	TMap<E_PartsCode, USkeletalMeshComponent*> CharacterPartsMap;
 	TSubclassOf<UAnimInstance> MyAnimInstanceClass;
-	TMap<FString, TArray<TSoftObjectPtr<USkeletalMesh>>> AvailableMeshesForParts;
+	TMap<E_PartsCode, TArray<TSoftObjectPtr<USkeletalMesh>>> AvailableMeshesForParts;
 	void InitializeAvailableBodyParts();
-	void LoadMeshesFromDirectory(const FString& DirectoryPath, const FString& PartType);
-	void MergeCharacterParts();
-	TArray<USkeletalMesh*> SelectingPartsForMerge();
+	void LoadMeshesFromDirectory(const FString& DirectoryPath, E_PartsCode);
+	USkeletalMesh* SetUpPartsForMerge(E_PartsCode);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category= BodyParts)
+	TMap<E_PartsCode, int32> BodyPartIndex;
+
+	void SelectRandomPart(E_PartsCode PartCode);
+	
+
+	void SelectPartByIndex(E_PartsCode PartCode, int32 Index);
 };
 

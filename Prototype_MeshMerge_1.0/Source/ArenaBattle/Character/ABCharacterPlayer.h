@@ -22,7 +22,6 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
-	void RandomizeCharacterParts();
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 // Character Control Section
@@ -57,15 +56,24 @@ protected:
 	TObjectPtr<class UInputAction> QuaterMoveAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UInputAction> QuaterLookAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UInputAction> AttackAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UInputAction> RandomizeAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UInputAction> IncrementPartsAction;
 	
 	void ShoulderMove(const FInputActionValue& Value);
 	void ShoulderLook(const FInputActionValue& Value);
+	void QuaterLook(const FInputActionValue& Value);
 
 	void QuaterMove(const FInputActionValue& Value);
 	void Attack();
+	void RandomizeCharacterParts();
+	void IncrementCharacterParts();
 	ECharacterControlType CurrentCharacterControlType;
 };

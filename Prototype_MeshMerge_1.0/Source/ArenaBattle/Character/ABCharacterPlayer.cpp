@@ -51,6 +51,12 @@ AABCharacterPlayer::AABCharacterPlayer()
 	{
 		QuaterMoveAction = InputActionQuaterMoveRef.Object;
 	}
+	
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionQuaterLookRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_QuaterLook.IA_QuaterLook'"));
+	if (nullptr != InputActionQuaterLookRef.Object)
+	{
+		QuaterMoveAction = InputActionQuaterLookRef.Object;
+	}
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionAttackRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_Attack.IA_Attack'"));
 	if (nullptr != InputActionAttackRef.Object)
@@ -62,6 +68,15 @@ AABCharacterPlayer::AABCharacterPlayer()
 	if (nullptr != InputActionRandomizeRef.Object)
 	{
 		RandomizeAction = InputActionRandomizeRef.Object;
+	} else
+	{
+		UE_LOG(LogTemp, Log, TEXT("NOPE"));
+	}
+
+	static ConstructorHelpers::FObjectFinder<UInputAction> InputActionIncrementPartsRef(TEXT("/Script/EnhancedInput.InputAction'/Game/ArenaBattle/Input/Actions/IA_IncrementParts.IA_IncrementParts'"));
+	if (nullptr != InputActionIncrementPartsRef.Object)
+	{
+		RandomizeAction = InputActionIncrementPartsRef.Object;
 	} else
 	{
 		UE_LOG(LogTemp, Log, TEXT("NOPE"));
@@ -80,6 +95,20 @@ void AABCharacterPlayer::BeginPlay()
 
 void AABCharacterPlayer::RandomizeCharacterParts()
 {
+	UE_LOG(LogTemp, Log, TEXT("Randomizing Called"));
+	SelectRandomPart(E_PartsCode::Head);
+	SelectRandomPart(E_PartsCode::Hands);
+	SelectRandomPart(E_PartsCode::UpperBody);
+	SelectRandomPart(E_PartsCode::LowerBody);
+	MergeCharacterParts();
+}
+
+void AABCharacterPlayer::IncrementCharacterParts()
+{
+	IncrementAndSelectPart(E_PartsCode::Head);
+	IncrementAndSelectPart(E_PartsCode::Hands);
+	IncrementAndSelectPart(E_PartsCode::UpperBody);
+	IncrementAndSelectPart(E_PartsCode::LowerBody);
 	MergeCharacterParts();
 }
 
@@ -95,8 +124,10 @@ void AABCharacterPlayer::SetupPlayerInputComponent(class UInputComponent* Player
 	EnhancedInputComponent->BindAction(ShoulderMoveAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::ShoulderMove);
 	EnhancedInputComponent->BindAction(ShoulderLookAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::ShoulderLook);
 	EnhancedInputComponent->BindAction(QuaterMoveAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::QuaterMove);
+	EnhancedInputComponent->BindAction(QuaterLookAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::QuaterLook);
 	EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::Attack);
 	EnhancedInputComponent->BindAction(RandomizeAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::RandomizeCharacterParts);
+	EnhancedInputComponent->BindAction(IncrementPartsAction, ETriggerEvent::Triggered, this, &AABCharacterPlayer::IncrementCharacterParts);
 }
 
 void AABCharacterPlayer::ChangeCharacterControl()
@@ -104,13 +135,16 @@ void AABCharacterPlayer::ChangeCharacterControl()
 	if (CurrentCharacterControlType == ECharacterControlType::Quater)
 	{
 		SetCharacterControl(ECharacterControlType::Shoulder);
+		APlayerController* PC = Cast<APlayerController>(GetController());
+		PC->bShowMouseCursor = false;
 	}
 	else if (CurrentCharacterControlType == ECharacterControlType::Shoulder)
 	{
 		SetCharacterControl(ECharacterControlType::Quater);
+		APlayerController* PC = Cast<APlayerController>(GetController());
+		PC->bShowMouseCursor = true;
 	}
 }
-
 void AABCharacterPlayer::SetCharacterControl(ECharacterControlType NewCharacterControlType)
 {
 	UABCharacterControlData* NewCharacterControl = CharacterControlManager[NewCharacterControlType];
@@ -167,6 +201,14 @@ void AABCharacterPlayer::ShoulderLook(const FInputActionValue& Value)
 	AddControllerPitchInput(LookAxisVector.Y);
 }
 
+void AABCharacterPlayer:: QuaterLook(const FInputActionValue& Value)
+{
+	FVector2D LookAxisVector = Value.Get<FVector2D>();
+
+	AddControllerYawInput(LookAxisVector.X);
+	AddControllerPitchInput(LookAxisVector.Y);
+}
+
 void AABCharacterPlayer::QuaterMove(const FInputActionValue& Value)
 {
 	FVector2D MovementVector = Value.Get<FVector2D>();
@@ -191,7 +233,7 @@ void AABCharacterPlayer::QuaterMove(const FInputActionValue& Value)
 
 void AABCharacterPlayer::Attack()
 {
-	ProcessComboCommand();
+	//ProcessComboCommand();
 }
 
 

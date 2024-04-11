@@ -3,7 +3,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "ABCharacterControlData.h"
 #include "Animation/AnimMontage.h"
-#include "ABComboActionData.h"
 #include "GameFramework/Character.h"
 #include "MeshMergeFunctionLibrary.h"
 #include "SkeletalMeshMerge.h"
@@ -64,101 +63,32 @@ void AABCharacterBase::SetCharacterControlData(const UABCharacterControlData* Ch
 {
 	// Pawn
 	bUseControllerRotationYaw = CharacterControlData->bUseControllerRotationYaw;
-
 	// CharacterMovement
 	GetCharacterMovement()->bOrientRotationToMovement = CharacterControlData->bOrientRotationToMovement;
 	GetCharacterMovement()->bUseControllerDesiredRotation = CharacterControlData->bUseControllerDesiredRotation;
 	GetCharacterMovement()->RotationRate = CharacterControlData->RotationRate;
 }
 
-void AABCharacterBase::ProcessComboCommand()
-{
-	if (CurrentCombo == 0)
-	{
-		ComboActionBegin();
-		return;
-	}
-
-	if(!ComboTimerHandle.IsValid())
-	{
-		HasNextComboCommand = false;
-	} else
-	{
-		HasNextComboCommand = true;
-	}
-}
-
-void AABCharacterBase::ComboActionBegin()
-{
-	CurrentCombo = 1;
-
-	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
-
-	const float AttackSpeedRate = 1.0f;
-	UAnimInstance* AnimInstance = GetMesh() -> GetAnimInstance();
-	AnimInstance->Montage_Play(ComboActionMontage, AttackSpeedRate);
-
-
-	FOnMontageEnded EndDelegate;
-	EndDelegate.BindUObject(this, &AABCharacterBase::ComboActionEnd);
-	AnimInstance->Montage_SetEndDelegate(EndDelegate, ComboActionMontage);
-
-	ComboTimerHandle.Invalidate();
-	SetComboCheckTimer();
-}
-
-void AABCharacterBase::ComboActionEnd(UAnimMontage* TargetMontage, bool IsProperlyEnded)
-{
-	ensure(CurrentCombo!=0);
-	CurrentCombo = 0;
-	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
-
-}
-
-void AABCharacterBase::SetComboCheckTimer()
-{
-	int32 ComboIndex = CurrentCombo - 1;
-	ensure(ComboActionData->EffectiveFrameCount.IsValidIndex(ComboIndex));
-
-	const float AttackSpeedRate = 1.0f;
-	float ComboEffectiveTime = (ComboActionData->EffectiveFrameCount[ComboIndex] / ComboActionData->FrameRate) / AttackSpeedRate;
-	if (ComboEffectiveTime > 0.0f)
-	{
-		GetWorld()->GetTimerManager().SetTimer(ComboTimerHandle, this, &AABCharacterBase::ComboCheck, ComboEffectiveTime, false);
-	}
-}
-
-void AABCharacterBase::ComboCheck()
-{
-	ComboTimerHandle.Invalidate();
-	if(HasNextComboCommand)
-	{
-		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-
-		CurrentCombo = FMath::Clamp(CurrentCombo + 1, 1, ComboActionData->MaxComboCount);
-		FName NextSection = *FString::Printf(TEXT("%s%d"), *ComboActionData->MontageSectionNamePrefix, CurrentCombo);
-		AnimInstance->Montage_JumpToSection(NextSection,ComboActionMontage);
-		SetComboCheckTimer();
-		HasNextComboCommand = false;
-	}
-}
-
-//Module Character Parts Code
 void AABCharacterBase::InitializeAvailableBodyParts()
 {
-	LoadMeshesFromDirectory(HeadBodyDir, TEXT("Head"));
-	LoadMeshesFromDirectory(UpperBodyDir, TEXT("UpperBody"));
-	LoadMeshesFromDirectory(LowerBodyDir, TEXT("LowerBody"));
-	LoadMeshesFromDirectory(HandsDir, TEXT("Hands"));
+	LoadMeshesFromDirectory(HeadBodyDir, E_PartsCode::Head);
+	LoadMeshesFromDirectory(UpperBodyDir, E_PartsCode::UpperBody);
+	LoadMeshesFromDirectory(LowerBodyDir, E_PartsCode::LowerBody);
+	LoadMeshesFromDirectory(HandsDir, E_PartsCode::Hands);
 
+	BodyPartIndex.Add(E_PartsCode::Head, 0);
+	BodyPartIndex.Add(E_PartsCode::UpperBody, 0);
+	BodyPartIndex.Add(E_PartsCode::LowerBody, 0);
+	BodyPartIndex.Add(E_PartsCode::Hands, 0);
 }
 
-void AABCharacterBase::LoadMeshesFromDirectory(const FString& DirectoryPath, const FString& PartType)
+
+void AABCharacterBase::LoadMeshesFromDirectory(const FString& DirectoryPath, E_PartsCode PartType)
 {
 	TArray<TSoftObjectPtr<USkeletalMesh>> Meshes;
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	FARFilter Filter;
-	Filter.ClassPaths.Add(USkeletalMesh::StaticClass()->GetClassPathName()); // Updated line
+	Filter.ClassPaths.Add(USkeletalMesh::StaticClass()->GetClassPathName());
 	Filter.bRecursivePaths = true;
 	Filter.PackagePaths.Add(*DirectoryPath);
 	TArray<FAssetData> AssetList;
@@ -184,41 +114,71 @@ void AABCharacterBase::MergeCharacterParts()
 	USkeleton* Skeleton = GetMesh()->GetSkeletalMeshAsset()->GetSkeleton();
 	USkeletalMesh* MergedMesh = NewObject<USkeletalMesh>(GetTransientPackage(), NAME_None, RF_Transient);
 	MergedMesh->USkeletalMesh::SetSkeleton(Skeleton);
-	FSkeletalMeshMerge MeshMerger(MergedMesh, SelectingPartsForMerge(), SectionMappings, StripTopLODs);
+	
+	TArray<USkeletalMesh*> PartsToMerge;
+	for (const auto& Elem : AvailableMeshesForParts)
+	{
+		PartsToMerge.Add(SetUpPartsForMerge(E_PartsCode::Head));
+		PartsToMerge.Add(SetUpPartsForMerge(E_PartsCode::UpperBody));
+		PartsToMerge.Add(SetUpPartsForMerge(E_PartsCode::LowerBody));
+		PartsToMerge.Add(SetUpPartsForMerge(E_PartsCode::Hands));
+	}
+	
+	FSkeletalMeshMerge MeshMerger(MergedMesh, PartsToMerge, SectionMappings, StripTopLODs);
 	if (MeshMerger.DoMerge())
 	{
 		GetMesh()->SetSkeletalMesh(MergedMesh);
 		GetMesh()->SetAnimInstanceClass(MyAnimInstanceClass);
-	}
-}
-
-TArray<USkeletalMesh*> AABCharacterBase::SelectingPartsForMerge()
-{
-	TArray<USkeletalMesh*> PartsToMerge;
-
-	for (const auto& Elem : AvailableMeshesForParts)
+	} else
 	{
-		const FString& PartName = Elem.Key;
-		const TArray<TSoftObjectPtr<USkeletalMesh>>& Variants = Elem.Value;
-
-		if (Variants.Num() > 0)
-		{
-			int32 RandomIndex = FMath::RandRange(0, Variants.Num() - 1);
-			USkeletalMesh* SelectedMesh = Variants[RandomIndex].LoadSynchronous();
-			if (SelectedMesh)
-			{
-				PartsToMerge.Add(SelectedMesh);
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("No variants available for part '%s'"), *PartName);
-		}
+		UE_LOG(LogTemp, Log, TEXT("Returned MeshMerge Skeleton NULL"));
 	}
-
-	return PartsToMerge;
 }
 
+USkeletalMesh* AABCharacterBase::SetUpPartsForMerge(E_PartsCode PartsCode)
+{
+	if(!AvailableMeshesForParts.Contains(PartsCode))
+	{
+		return nullptr;
+	}
+	const TArray<TSoftObjectPtr<USkeletalMesh>>& Variants = AvailableMeshesForParts[PartsCode];
+
+	if (Variants.Num() > 0)
+	{
+		USkeletalMesh* SelectedMesh = Variants[BodyPartIndex[PartsCode]].LoadSynchronous();
+		return SelectedMesh;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No variants available for part '%s'"), PartsCode);
+		return nullptr;
+	}
+}
+
+void AABCharacterBase::SelectRandomPart(E_PartsCode PartCode)
+{
+	int32 RandomIndex = FMath::RandRange(0, AvailableMeshesForParts[PartCode].Num() - 1);
+
+	if (AvailableMeshesForParts.Contains(PartCode)) {
+		int32 CurrentIndex = BodyPartIndex.Contains(PartCode) ? BodyPartIndex[PartCode] : 0;
+		BodyPartIndex[PartCode] = (CurrentIndex + 1) % AvailableMeshesForParts[PartCode].Num();
+	}
+}
+
+void AABCharacterBase::IncrementAndSelectPart(E_PartsCode PartCode)
+{
+	if (AvailableMeshesForParts.Contains(PartCode)) {
+		int32 CurrentIndex = BodyPartIndex.Contains(PartCode) ? BodyPartIndex[PartCode] : 0;
+		BodyPartIndex[PartCode] = (CurrentIndex + 1) % AvailableMeshesForParts[PartCode].Num();
+	}
+}
+
+void AABCharacterBase::SelectPartByIndex(E_PartsCode PartCode, int32 Index)
+{
+	if (AvailableMeshesForParts.Contains(PartCode)) {
+		BodyPartIndex[PartCode] = Index % AvailableMeshesForParts[PartCode].Num();
+	}
+}
 
 
 
