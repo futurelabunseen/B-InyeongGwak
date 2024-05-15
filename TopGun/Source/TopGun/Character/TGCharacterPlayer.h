@@ -6,6 +6,9 @@
 #include "InputActionValue.h"
 #include "Character/TGCharacterBase.h"
 #include "TopGun/Utility/TGModulesystem.h"
+#include "GameInstance/TGGameInstance.h"
+#include "Weapon/TGBaseWeapon.h"
+
 #include "TGCharacterPlayer.generated.h"
 /**
  * 
@@ -22,6 +25,7 @@ public :
 
 protected:
 	virtual void BeginPlay() override;
+	void SetupPlayerModel(USkeletalMeshComponent* TargetMesh);
 	void Walk(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void Fly(const FInputActionValue& Value);
@@ -39,6 +43,9 @@ protected:
 	// Character Control Section
 public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	void SwitchScene();
+	void Attack();
+
 protected:
 	ECharacterControlType CurrentCharacterControlType;
 	void ChangeCharacterControl();
@@ -67,7 +74,10 @@ protected:
 	TObjectPtr<class UInputAction> FlyAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Input, Meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<class UInputAction> EnterEditAction;
+	TObjectPtr<class UInputAction> SwitchSceneAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Input, Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UInputAction> AttackAction;
 
 	void WalkingMove(const FInputActionValue& Value);
 	void WalkingLook(const FInputActionValue& Value);
@@ -76,7 +86,9 @@ protected:
 
 private:
 	TMap<E_PartsCode, int32> BodyPartIndex;
-
+	TWeakObjectPtr<UTGCGameInstance> MyGameInstance;
+	TMap<FName, TWeakObjectPtr<ATGBaseWeapon>> WeaponMap;
+	
 public:
 	UPROPERTY()
 	TMap<FString, AActor*> SocketActors;

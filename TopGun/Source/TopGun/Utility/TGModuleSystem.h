@@ -11,10 +11,10 @@ UENUM(BlueprintType)
 enum class E_PartsCode : uint8
 {
 	Head UMETA(DisplayName = "Head"),
-	UpperBody UMETA(DisplayName = "Chest"),
-	LowerBody UMETA(DisplayName = "Leg"),
-	LeftHand UMETA(DisplayName = "LeftArm"),  
-	RightHand UMETA(DisplayName = "RightArm")
+	UpperBody UMETA(DisplayName = "Upper Body"),
+	LowerBody UMETA(DisplayName = "Lower Body"),
+	LeftHand UMETA(DisplayName = "Left Hand"),
+	RightHand UMETA(DisplayName = "Right Hand")
 };
 
 UCLASS(BlueprintType)
@@ -25,5 +25,6 @@ class TOPGUN_API UTGModuleSystem : public UObject
 public:
 	UTGModuleSystem();
 	UFUNCTION(BlueprintCallable, Category="Character Customization")
-	USkeletalMesh* GetMergeCharacterParts(const TMap<E_PartsCode, FName>& WholeModuleData, TSoftObjectPtr<UTGModuleDataAsset> ModuleAsset);
+	static USkeletalMesh* GetMergeCharacterParts(const TMap<E_PartsCode, FName>& WholeModuleData, TSoftObjectPtr<class UTGModuleDataAsset> ModuleAsset);
+
 };

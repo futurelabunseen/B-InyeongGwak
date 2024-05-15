@@ -16,17 +16,15 @@ UAbilitySystemComponent* ATGGASCharacterPlayer::GetAbilitySystemComponent() cons
 }
 
 void ATGGASCharacterPlayer::PossessedBy(AController* NewController)
-//Called only for server, not client
 {
-	
 	Super::PossessedBy(NewController);
 	ATGGASPlayerState* GASPS = GetPlayerState<ATGGASPlayerState>();
 	if (GASPS)
 	{
 		ASC = GASPS->GetAbilitySystemComponent();
 		ASC->InitAbilityActorInfo(GASPS, this);
-
 		int32 InputId = 0;
+		
 		for (const auto& StartAbility : StartAbilities)
 		{
 			FGameplayAbilitySpec StartSpec(StartAbility);
@@ -34,7 +32,6 @@ void ATGGASCharacterPlayer::PossessedBy(AController* NewController)
 			ASC->GiveAbility(StartSpec);
 		}
 	}
-	
 }
 
 void ATGGASCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -42,6 +39,11 @@ void ATGGASCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInp
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
 	SetupGASInputComponent();
+}
+
+void ATGGASCharacterPlayer::BeginPlay()
+{
+	Super::BeginPlay();
 }
 
 void ATGGASCharacterPlayer::SetupGASInputComponent()

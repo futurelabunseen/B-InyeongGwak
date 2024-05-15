@@ -19,7 +19,7 @@ public:
 	virtual class UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
-
+	virtual void BeginPlay() override;
 protected:
 	void SetupGASInputComponent();
 	void GASInputPressed(int32 InputId);

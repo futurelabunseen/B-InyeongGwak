@@ -11,4 +11,7 @@ UCLASS()
 class TOPGUN_API ATGBaseWeapon : public AActor, public ITGWeaponInterface
 {
 	GENERATED_BODY()
+	public:
+	FName WeaponID;
+	FName BoneID;
 };

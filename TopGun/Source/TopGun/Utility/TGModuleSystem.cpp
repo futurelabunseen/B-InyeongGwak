@@ -20,24 +20,22 @@ USkeletalMesh* UTGModuleSystem::GetMergeCharacterParts(const TMap<E_PartsCode, F
 	}
 	if (PartsToMerge.IsEmpty())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("No parts to merge, operation cancelled."));
+		UE_LOG(LogTemp, Log, TEXT("PartsToMerge  Empty"));
 		return nullptr;
 	}
 	USkeletalMesh* MergedMesh = NewObject<USkeletalMesh>(GetTransientPackage(), NAME_None, RF_Transient);
 	if (!MergedMesh)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to create a merged skeletal mesh."));
+		UE_LOG(LogTemp, Log, TEXT("MergedMesh  Empty"));
 		return nullptr;
 	}
 	FSkeletalMeshMerge MeshMerger(MergedMesh, PartsToMerge, TArray<FSkelMeshMergeSectionMapping>(), 0);
-	bool bMergeSuccess = MeshMerger.DoMerge();
-	if (bMergeSuccess)
+	if (bool bMergeSuccess = MeshMerger.DoMerge())
 	{
 		return MergedMesh;
-	}
-	else
+	} else
 	{
-		UE_LOG(LogTemp, Error, TEXT("Mesh merge failed."));
+		UE_LOG(LogTemp, Log, TEXT("Merge Mesh Failed"));
 		return nullptr;
 	}
 }

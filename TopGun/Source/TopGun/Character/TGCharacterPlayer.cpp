@@ -8,6 +8,8 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "TGPlayerControlData.h"
+#include "GameInstance/TGGameInstance.h"
+#include "Utility/TGWeaponDataAsset.h"
 #include "Weapon/TGBaseWeapon.h"
 
 ATGCharacterPlayer::ATGCharacterPlayer()
@@ -33,6 +35,13 @@ void ATGCharacterPlayer::BeginPlay()
 {
 	Super::BeginPlay();
 	SetCharacterControl(CurrentCharacterControlType);
+	MyGameInstance = Cast<UTGCGameInstance>(GetGameInstance());
+	if (!MyGameInstance.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to cast GameInstance to UTGCGameInstance."));
+		FGenericPlatformMisc::RequestExit(false);
+		return;
+	}
 
 	for (const FString& socketName : socketNames)
 	{
@@ -40,6 +49,40 @@ void ATGCharacterPlayer::BeginPlay()
 		if (placeholder)
 		{
 			placeholder->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName(*socketName));
+		}
+	}
+
+	SetupPlayerModel(GetMesh());
+}
+
+void ATGCharacterPlayer::SetupPlayerModel(USkeletalMeshComponent* TargetMesh)
+{
+	UClass* AnimClass = TargetMesh->GetAnimClass();
+	USkeleton* Skeleton = TargetMesh->GetSkeletalMeshAsset()->GetSkeleton();
+	USkeletalMesh* MergedMesh = UTGModuleSystem::GetMergeCharacterParts(MyGameInstance->ModuleBodyPartIndex, MyGameInstance->ModuleDataAsset);
+	if (MergedMesh == nullptr)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to merge Mesh."));
+		return;
+	}
+	MergedMesh->USkeletalMesh::SetSkeleton(Skeleton);
+	TargetMesh->SetSkeletalMesh(MergedMesh);
+	TargetMesh->SetAnimInstanceClass(AnimClass);
+	
+	for (const auto& Elem: MyGameInstance->AttachedActorsMap)
+	{
+		FName BoneID = Elem.Key;
+		FName WeaponID = Elem.Value.ActorID;
+		UBlueprintGeneratedClass* WeaponClass = *MyGameInstance->WeaponDataAsset->BaseWeaponClasses.Find(WeaponID);
+		AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(WeaponClass, FVector::ZeroVector, FRotator::ZeroRotator);
+		ClonedActor->AttachToComponent(TargetMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BoneID);
+		ClonedActor->SetActorRotation(Elem.Value.Rotation);
+		ClonedActor->SetActorEnableCollision(false);
+
+		TWeakObjectPtr<ATGBaseWeapon> WeaponPointer = Cast<ATGBaseWeapon>(ClonedActor);
+		if (WeaponPointer.IsValid())
+		{
+			WeaponMap.Add(BoneID, WeaponPointer); // Save the weapon pointer in the map
 		}
 	}
 }
@@ -56,8 +99,27 @@ void ATGCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	EnhancedInputComponent->BindAction(WalkAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Walk);
 	EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Look);
 	EnhancedInputComponent->BindAction(FlyAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::Fly);
+	EnhancedInputComponent->BindAction(SwitchSceneAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::SwitchScene);
+	EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Attack);
 }
 
+void ATGCharacterPlayer::SwitchScene()
+{
+	MyGameInstance->ChangeLevel(FName(TEXT("Customizing")));
+}
+
+void ATGCharacterPlayer::Attack()
+{
+	for(const auto& Elem: WeaponMap)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Attack Iter"));
+		if(ITGWeaponInterface* WeaponInterface = Cast<ITGWeaponInterface>(Elem.Value))
+		{
+			UE_LOG(LogTemp, Log, TEXT("AttackCasted"));
+			WeaponInterface->FunctionFireWeapon(false, false, CameraBoom);
+		}
+	}
+}
 
 
 void ATGCharacterPlayer::Walk(const FInputActionValue& Value)
@@ -79,8 +141,9 @@ void ATGCharacterPlayer::Look(const FInputActionValue& Value)
 	UE_LOG(LogTemp, Log, TEXT("LookAxisVector : X = %f, Y = %f"), LookAxisVector.X, LookAxisVector.Y);
 
 	AddControllerYawInput(LookAxisVector.X);
-	AddControllerPitchInput(LookAxisVector.Y);
+	AddControllerPitchInput(-LookAxisVector.Y);
 }
+
 void ATGCharacterPlayer::Fly(const FInputActionValue& Value)
 {
 	FVector2D MovementVector = Value.Get<FVector2D>();
