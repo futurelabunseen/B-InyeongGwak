@@ -6,13 +6,6 @@
 #include "GameFramework/Character.h"
 #include "TGCharacterBase.generated.h"
 
-UENUM()
-enum class ECharacterControlType : uint8
-{
-	Flying,
-	Walking,
-	Changing
-};
 
 UCLASS()
 class TOPGUN_API ATGCharacterBase : public ACharacter
@@ -21,9 +14,13 @@ class TOPGUN_API ATGCharacterBase : public ACharacter
 
 public:
 	ATGCharacterBase();
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
 
 protected:
 	virtual void SetCharacterControlData(const class UTGPlayerControlData* CharacterControlData);
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character Control")
-	TMap<ECharacterControlType, class UTGPlayerControlData*> CharacterControlManager;
+	int Health;
+	float KnockBackAmount;
+	UFUNCTION()
+	virtual void Die();
 };

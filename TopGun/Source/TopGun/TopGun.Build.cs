@@ -10,7 +10,7 @@ public class TopGun : ModuleRules
 	
 		PublicIncludePaths.AddRange(new string[] { "TopGun" });
 		
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "AIModule" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
 			"GameFeatures",

@@ -13,6 +13,16 @@
 /**
  * 
  */
+
+UENUM()
+enum class ECharacterControlType : uint8
+{
+	Flying,
+	Walking,
+	Changing
+};
+
+
 UCLASS()
 class TOPGUN_API ATGCharacterPlayer : public ATGCharacterBase
 {
@@ -28,6 +38,9 @@ protected:
 	void SetupPlayerModel(USkeletalMeshComponent* TargetMesh);
 	void Walk(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
+	void AimLook(const FInputActionValue& Value);
+	void ResetWeaponRotations();
+	void SetWeaponRotations();
 	void Fly(const FInputActionValue& Value);
 
 
@@ -38,6 +51,9 @@ protected:
 	TObjectPtr<class USpringArmComponent> CameraBoom;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class USpringArmComponent> ShoulderCameraBoom;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UCameraComponent> FollowCamera;
 
 	// Character Control Section
@@ -46,11 +62,18 @@ public:
 	void SwitchScene();
 	void Attack();
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	FVector CameraOffsetWhenAiming = FVector(50.0f, 50.0f, 0.0f);;
+	
 protected:
 	ECharacterControlType CurrentCharacterControlType;
 	void ChangeCharacterControl();
+	void AimCameraStart();
+	FVector GetScreenAimingPointVector() const;
+	void AimCameraEnd();
 	void SetCharacterControl(ECharacterControlType NewCharacterControlType);
 	virtual void SetCharacterControlData(const class UTGPlayerControlData* CharacterControlData) override;
+	virtual void Die() override;
 	
 	// Input Section
 	
@@ -79,19 +102,32 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Input, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UInputAction> AttackAction;
 
-	void WalkingMove(const FInputActionValue& Value);
-	void WalkingLook(const FInputActionValue& Value);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Input, Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UInputAction> AimAction;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = State, Meta = (AllowPrivateAccess = "true"))
+	bool bIsAiming = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character Control")
+	TMap<ECharacterControlType, class UTGPlayerControlData*> CharacterControlManager;
+	
 	void FlyingMove(const FInputActionValue& Value);
 	void FlyingLook(const FInputActionValue& Value);
 
 private:
 	TMap<E_PartsCode, int32> BodyPartIndex;
 	TWeakObjectPtr<UTGCGameInstance> MyGameInstance;
-	TMap<FName, TWeakObjectPtr<ATGBaseWeapon>> WeaponMap;
+	TMap<FName, AActor*> WeaponMap;
+	FVector OriginalCameraOffset;
+	UFUNCTION()
+	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
+	UFUNCTION()
+	virtual void NotifyActorEndOverlap(AActor* OtherActor) override;
 	
 public:
 	UPROPERTY()
 	TMap<FString, AActor*> SocketActors;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CharacterSocket")
 	TArray<FString> socketNames = { TEXT("HeadSocket"), TEXT("HandSocket"), TEXT("FootSocket") };
+	
 };

@@ -27,10 +27,35 @@ ATGCharacterBase::ATGCharacterBase()
 	GetCharacterMovement()->MaxWalkSpeed = 500.f;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
-	
-	
-	
+
+	GetCapsuleComponent()->SetCollisionProfileName(TEXT("CPROFILE_TGCAPSULE"));
+	GetMesh()->SetCollisionProfileName(TEXT("NoCollision"));
 }
+
+float ATGCharacterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator,
+	AActor* DamageCauser)
+{
+	UE_LOG(LogTemp, Warning, TEXT("%s DAMANGED HP : %d"), *GetActorNameOrLabel(),Health);
+	
+	if (Health <= 0)
+	{
+		return 0.0f;
+	}
+
+	Health -= DamageAmount;
+	if (Health <= 0)
+	{
+		Die();
+	}
+	else
+	{
+		FVector KnockbackDirection = (GetActorLocation() - DamageCauser->GetActorLocation()).GetSafeNormal();
+		LaunchCharacter(KnockbackDirection * KnockBackAmount, true, true);
+	}
+
+	return DamageAmount;
+}
+
 
 void ATGCharacterBase::SetCharacterControlData(const UTGPlayerControlData* CharacterControlData)
 {
@@ -40,6 +65,11 @@ void ATGCharacterBase::SetCharacterControlData(const UTGPlayerControlData* Chara
 	GetCharacterMovement()->bOrientRotationToMovement = CharacterControlData->bOrientRotationToMovement;
 	GetCharacterMovement()->bUseControllerDesiredRotation = CharacterControlData->bUseControllerDesiredRotation;
 	GetCharacterMovement()->RotationRate = CharacterControlData->RotationRate;
+}
+
+void ATGCharacterBase::Die()
+{
+	
 }
 
 

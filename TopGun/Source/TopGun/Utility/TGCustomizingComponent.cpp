@@ -1,7 +1,6 @@
 #include "TGCustomizingComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/ScrollBox.h"
-#include "GameInstance/TGGameInstance.h"
 #include "UI/TGInventoryWeaponButton.h"
 #include "Utility/TGModuleSystem.h"
 #include "Utility/TGModuleDataAsset.h"

@@ -306,9 +306,6 @@ void ATGCustomizingPlayerController::UpdateWeaponActorPosition()
 {
     if (GetPawn())
     {
-        float MouseX, MouseY;
-        if (GetMousePosition(MouseX, MouseY))
-        {
             FVector WorldLocation, WorldDirection;
             if (DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
             {
@@ -321,7 +318,6 @@ void ATGCustomizingPlayerController::UpdateWeaponActorPosition()
                     CurrentSpawnedActor->SetActorLocation(IntersectionPoint);
                 }
             }
-        }
     }
 }
 
