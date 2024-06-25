@@ -26,5 +26,5 @@ public:
 	UTGModuleSystem();
 	UFUNCTION(BlueprintCallable, Category="Character Customization")
 	static USkeletalMesh* GetMergeCharacterParts(const TMap<E_PartsCode, FName>& WholeModuleData, TSoftObjectPtr<class UTGModuleDataAsset> ModuleAsset);
-
+	void SetupModuleFromLeaderPoseComponent(const TMap<E_PartsCode, FName>& WholeModuleData, TSoftObjectPtr<UTGModuleDataAsset> ModuleAsset);
 };

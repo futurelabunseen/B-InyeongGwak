@@ -32,8 +32,6 @@ FVector ATGBaseWeapon::GetArrowForwardVector() const
 FQuat ATGBaseWeapon::GetAimingRotation(const FVector& TargetVector) const
 {
     FRotator LookRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), TargetVector);
-    //DrawDebugLine(GetWorld(), GetActorLocation(), TargetVector * 1000.0f, FColor::Blue, false, 5.0f, 0, 1.0f);
-    
     return LookRotation.Quaternion();
 }
 
@@ -55,6 +53,21 @@ FName ATGBaseWeapon::GetWeaponID_Implementation()
 FName ATGBaseWeapon::GetBoneID_Implementation()
 {
     return BoneID;
+}
+
+FQuat ATGBaseWeapon::GetDefaultRoationQuat() const
+{
+    return DefaultRotationQuat;
+}
+
+void ATGBaseWeapon::SetSpringArmComponent(USpringArmComponent* SpringArmComponent)
+{
+    MySpringArmComponent = SpringArmComponent;
+}
+
+USpringArmComponent* ATGBaseWeapon::GetSpringArmComponent() const
+{
+    return MySpringArmComponent;
 }
 
 

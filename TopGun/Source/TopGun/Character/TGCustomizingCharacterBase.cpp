@@ -4,6 +4,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameInstance/TGGameInstance.h"
 #include "Utility/TGCustomizingComponent.h"
+#include "Utility/TGModuleDataAsset.h"
 #include "Weapon/TGBaseWeapon.h"
 
 ATGCustomizingCharacterBase::ATGCustomizingCharacterBase()
@@ -16,6 +17,19 @@ ATGCustomizingCharacterBase::ATGCustomizingCharacterBase()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 	CustomizingComponent = CreateDefaultSubobject<UTGCustomizingComponent>(TEXT("CustomizingComponent"));
+
+	for (int32 i = 0; i < StaticEnum<E_PartsCode>()->NumEnums() - 1; ++i)
+	{
+		E_PartsCode PartCode = static_cast<E_PartsCode>(i);
+		FName PartName = StaticEnum<E_PartsCode>()->GetNameByIndex(i);
+		USkeletalMeshComponent* NewMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(*PartName.ToString());
+		if (NewMeshComponent)
+		{
+			NewMeshComponent ->SetupAttachment(GetMesh());
+			NewMeshComponent ->SetLeaderPoseComponent(GetMesh(), true);
+			CharacterPartsMap.Add(PartCode, NewMeshComponent);
+		}
+	}
 }
 
 void ATGCustomizingCharacterBase::BeginPlay()
@@ -33,17 +47,14 @@ void ATGCustomizingCharacterBase::BeginPlay()
 
 void ATGCustomizingCharacterBase::SetupPlayerModel(USkeletalMeshComponent* TargetMesh) const
 {
-	UClass* AnimClass = TargetMesh->GetAnimClass();
-	USkeleton* Skeleton = TargetMesh->GetSkeletalMeshAsset()->GetSkeleton();
-	USkeletalMesh* MergedMesh = UTGModuleSystem::GetMergeCharacterParts(MyGameInstance->ModuleBodyPartIndex, MyGameInstance->ModuleDataAsset);
-	if (MergedMesh == nullptr)
+	for (const auto& Elem : MyGameInstance->ModuleBodyPartIndex)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to merge Mesh."));
-		return;
+		E_PartsCode PartCode = Elem.Key;
+		FName PartName = Elem.Value;
+		const FMeshCategoryData* TargetData = MyGameInstance->ModuleDataAsset->BaseMeshComponent.Find(Elem.Value);
+		MyGameInstance->ModuleBodyPartIndex[TargetData->Category] = Elem.Value;
+		CharacterPartsMap[TargetData->Category]->SetSkeletalMesh(MyGameInstance->ModuleDataAsset->GetMeshByID(Elem.Value));
 	}
-	MergedMesh->USkeletalMesh::SetSkeleton(Skeleton);
-	TargetMesh->SetSkeletalMesh(MergedMesh);
-	TargetMesh->SetAnimInstanceClass(AnimClass);
 	
 	for (const auto& Elem: MyGameInstance->AttachedActorsMap)
 	{

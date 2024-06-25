@@ -6,61 +6,72 @@
 #include "Utility/TGModuleSystem.h"
 #include "TGCustomizingComponent.generated.h"
 
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class TOPGUN_API UTGCustomizingComponent : public UActorComponent
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	UTGCustomizingComponent();
+    UTGCustomizingComponent();
 
 protected:
-	virtual void BeginPlay() override;
+    virtual void BeginPlay() override;
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UIWidget")
-	TSubclassOf<UUserWidget> ModuleButtonWidgetClass;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UIWidget")
-	TSubclassOf<UUserWidget> WeaponButtonWidgetClass;
-	static USkeletalMesh* GetMergedCharacterParts(const TMap<E_PartsCode, FName>& WholeModuleData, TWeakObjectPtr<UTGModuleDataAsset> ModuleDataAsset);
-	static UBlueprintGeneratedClass* GetWeaponClassById(FName WeaponID, UTGWeaponDataAsset* WeaponDataAsset);
-	void AddButtonToPanel(class UScrollBox* TargetPanel, TSubclassOf<class UUserWidget> TargetButtonWidget, FName ID) const;
-	void AddWeaponButtonToPanel(UScrollBox* TargetPanel) const;
-	void AddModuleButtonToPanel(UScrollBox* TargetPanel) const;
-	AActor* SpawnWeapon(FName WeaponID);
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UIWidget")
+    TSubclassOf<UUserWidget> ModuleButtonWidgetClass;
 
-	//MOVED
-	void SpawnCurrentWeapon(FName WeaponID);
-	void SpawnModule(FName WeaponID) const;
-	bool AttachWeapon() const;
-	void RemoveWeaponFromCharacter(AActor* WeaponToRemove) const;
-	void UpdateWeaponActorPosition(const FVector& WorldLocation, const FVector& WorldDirection) const;
-	bool IsWeaponNearBone();
-	void UnSnapActor();
-	bool SnapActor(FVector ClosestBoneLocation, float ClosestBoneDistance, FName ClosestBoneName);
-	void SaveRotationData() const;
-	void ResetHoldingData();
-	void SetWeaponRotation(FQuat Rotation) const;
-	void SetCurrentRotationSelectedActor(AActor* TargetActor);
-	void DrawDebugHighlight() const;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UIWidget")
+    TSubclassOf<UUserWidget> WeaponButtonWidgetClass;
+
+    void AddButtonToPanel(class UScrollBox* TargetPanel, TSubclassOf<class UUserWidget> TargetButtonWidget, FName ID) const;
+    void AddWeaponButtonToPanel(UScrollBox* TargetPanel) const;
+    void AddModuleButtonToPanel(UScrollBox* TargetPanel) const;
+
+    // Customizing Features
+    static USkeletalMesh* GetMergedCharacterParts(const TMap<E_PartsCode, FName>& WholeModuleData, TWeakObjectPtr<UTGModuleDataAsset> ModuleDataAsset);
+    static UBlueprintGeneratedClass* GetWeaponClassById(FName WeaponID, UTGWeaponDataAsset* WeaponDataAsset);
+
+    // Spawn
+    AActor* SpawnWeapon(FName WeaponID);
+    void SpawnCurrentWeapon(FName WeaponID);
+    void SpawnModule(FName WeaponID) const; // MeshMerge Method1
+    void AlterModuleComponent(FName WeaponID); // LeaderPoseComponent Method2
+    bool AttachWeapon() const;
+
+    // Handling Spawned Actor
+    void RemoveWeaponFromCharacter(AActor* WeaponToRemove) const;
+    void UpdateWeaponActorPosition(const FVector& WorldLocation, const FVector& WorldDirection) const;
+
+    bool IsWeaponNearBone();
+    void UnSnapActor();
+    bool SnapActor(FVector ClosestBoneLocation, float ClosestBoneDistance, FName ClosestBoneName);
+
+    // Rotation
+    void SaveRotationData() const;
+    void ResetHoldingData();
+    void SetWeaponRotation(FQuat Rotation) const;
+    void SetCurrentRotationSelectedActor(AActor* TargetActor);
+
+    // Debug
+    void DrawDebugHighlight() const;
 
 public:
-	AActor* CurrentSpawnedActor;
-	AActor* CurrentSnappedActor;
-	TWeakObjectPtr<UTGCGameInstance> MyGameInstance;
+    AActor* CurrentSpawnedActor;
+    TWeakObjectPtr<UTGCGameInstance> MyGameInstance;
 
 private:
-	TWeakObjectPtr<UTGModuleDataAsset> ModuleDataAsset;
-	TWeakObjectPtr<UTGWeaponDataAsset> WeaponDataAsset;
+    TWeakObjectPtr<UTGModuleDataAsset> ModuleDataAsset;
+    TWeakObjectPtr<UTGWeaponDataAsset> WeaponDataAsset;
 
-//STOREDVALLUE
-	TObjectPtr<class USkeletalMeshComponent> MySkeletalMeshComponent;
-	AActor* CurrentRotationSelectedActor;
-	FName CurrentTargetBone;
+    // STORED VALUE
+    TObjectPtr<class USkeletalMeshComponent> MySkeletalMeshComponent;
+    AActor* CurrentRotationSelectedActor;
+    FName CurrentTargetBone;
 
-	//PROPERTIES
-	UPROPERTY()
-	float SnapCheckDistance = 50.0f;
+    // PROPERTIES
+    UPROPERTY(EditAnywhere)
+    float SnapCheckDistance = 50.0f;
 };
 
 // Forward declare UScrollBox

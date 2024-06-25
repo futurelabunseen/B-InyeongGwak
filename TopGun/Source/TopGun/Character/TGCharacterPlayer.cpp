@@ -9,8 +9,6 @@
 #include "GameInstance/TGGameInstance.h"
 #include "Utility/TGWeaponDataAsset.h"
 #include "Interface/TGWeaponInterface.h"
-#include "Kismet/GameplayStatics.h"
-#include "Weapon/TGBaseWeapon.h"
 #include "Utility/TGCharacterStatComponent.h"
 
 
@@ -73,7 +71,7 @@ void ATGCharacterPlayer::BeginPlay()
         FGenericPlatformMisc::RequestExit(false);
         return;
     }
-
+/*
     for (const FString& socketName : socketNames)
     {
         ATGBaseWeapon* placeholder = GetWorld()->SpawnActor<ATGBaseWeapon>(ATGBaseWeapon::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
@@ -82,6 +80,7 @@ void ATGCharacterPlayer::BeginPlay()
             placeholder->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName(*socketName));
         }
     }
+*/
     OriginalCameraOffset =  OriginalCameraOffset = FollowCamera->GetRelativeLocation();
     TargetCameraOffset = OriginalCameraOffset + FVector(0.0f, 0.0f, 100.0f);
     SetupPlayerModel(GetMesh());
@@ -144,9 +143,11 @@ void ATGCharacterPlayer::SetupPlayerModel(USkeletalMeshComponent* TargetMesh)
             ClonedActor->SetActorRotation(Elem.Value.Rotation);
             ClonedActor->SetActorEnableCollision(false);
 
-            ATGBaseWeapon* CastedWeapon = CastChecked<ATGBaseWeapon>(ClonedActor);
-            CastedWeapon->InitializeWeapon(BoneID, WeaponID);
-            CastedWeapon->MySpringArmComponent = WeaponSpringArm;
+            if(ITGWeaponInterface* WeaponInterface = Cast<ITGWeaponInterface>(ClonedActor))
+            {
+                WeaponInterface->InitializeWeapon(BoneID, WeaponID);
+                WeaponInterface->SetSpringArmComponent(WeaponSpringArm);
+            }
             WeaponMap.Add(BoneID, ClonedActor);
         }
         else
@@ -250,12 +251,11 @@ void ATGCharacterPlayer::SetWeaponRotations()
     {
         if (AActor* WeaponActor = Elem.Value)
         {
-            if (ATGBaseWeapon* CastedWeapon = CastChecked<ATGBaseWeapon>(WeaponActor))
+            if(ITGWeaponInterface* WeaponInterface = Cast<ITGWeaponInterface>(WeaponActor))
             {
-                USpringArmComponent* WeaponSpringArm = CastChecked<USpringArmComponent>(CastedWeapon->MySpringArmComponent);
-                FQuat TargetRotation = CastedWeapon->GetAimingRotation(GetScreenAimingPointVector());
-                //fquatnet 정보량 줄여줌
-                CastedWeapon->SetActorRotation(TargetRotation);
+                USpringArmComponent* WeaponSpringArm = CastChecked<USpringArmComponent>(WeaponInterface->GetSpringArmComponent());
+                FQuat TargetRotation = WeaponInterface->GetAimingRotation(GetScreenAimingPointVector());
+                WeaponActor->SetActorRotation(TargetRotation);
             }
         }
     }
@@ -267,9 +267,13 @@ void ATGCharacterPlayer::ResetWeaponRotations()
     {
         if (AActor* WeaponActor = Elem.Value)
         {
-            ATGBaseWeapon* Weapon = CastChecked<ATGBaseWeapon>(WeaponActor);
-            USpringArmComponent* WeaponSpringArm = CastChecked<USpringArmComponent>(Weapon->MySpringArmComponent);
-            Weapon->SetActorRotation(Weapon->DefaultRotationQuat);
+            if(ITGWeaponInterface* WeaponInterface = Cast<ITGWeaponInterface>(WeaponActor))
+            {
+                 USpringArmComponent* WeaponSpringArm = WeaponInterface->GetSpringArmComponent();
+                 FQuat DefaultQuatRotation = WeaponInterface->GetDefaultRoationQuat();
+                WeaponActor->SetActorRotation(DefaultQuatRotation);
+
+            }
         }
         else
         {

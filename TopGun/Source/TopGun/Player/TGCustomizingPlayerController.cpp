@@ -393,6 +393,9 @@ void ATGCustomizingPlayerController::AddWeaponButtonToPanel(UScrollBox* TargetPa
     if (MyCustomizingComponent)
     {
         MyCustomizingComponent->AddWeaponButtonToPanel(TargetPanel);
+    } else
+    {
+        UE_LOG(LogTemp, Log, TEXT("AddWeaponButtonToPanel: CustomizingComponent null"));
     }
 }
 
@@ -401,6 +404,9 @@ void ATGCustomizingPlayerController::AddModuleButtonToPanel(UScrollBox* TargetPa
     if (MyCustomizingComponent)
     {
         MyCustomizingComponent->AddModuleButtonToPanel(TargetPanel);
+    } else
+    {
+        UE_LOG(LogTemp, Log, TEXT("AddModuleButtonToPanel: CustomizingComponent null"));
     }
 }
 
@@ -437,7 +443,7 @@ void ATGCustomizingPlayerController::OnModuleSelected(FName WeaponID)
 {
     if (MyCustomizingComponent)
     {
-        MyCustomizingComponent->SpawnModule(WeaponID);
+        MyCustomizingComponent->AlterModuleComponent(WeaponID);
     }
     else
     {

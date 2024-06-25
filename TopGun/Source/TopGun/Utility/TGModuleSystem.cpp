@@ -4,6 +4,7 @@
 #include "Utility/TGModuleSystem.h"
 #include "SkeletalMeshMerge.h"
 #include "TGModuleDataAsset.h"
+#include "Character/TGCustomizingCharacterBase.h"
 
 
 UTGModuleSystem::UTGModuleSystem()
@@ -39,3 +40,4 @@ USkeletalMesh* UTGModuleSystem::GetMergeCharacterParts(const TMap<E_PartsCode, F
 		return nullptr;
 	}
 }
+

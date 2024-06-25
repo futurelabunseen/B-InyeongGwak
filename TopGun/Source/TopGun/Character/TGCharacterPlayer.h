@@ -7,7 +7,6 @@
 #include "Character/TGCharacterBase.h"
 #include "TopGun/Utility/TGModulesystem.h"
 #include "GameInstance/TGGameInstance.h"
-#include "Weapon/TGBaseWeapon.h"
 
 #include "TGCharacterPlayer.generated.h"
 /**

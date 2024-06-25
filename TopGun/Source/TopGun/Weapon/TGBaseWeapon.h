@@ -30,25 +30,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
 	float AttackDamage;
 
-	void InitializeWeapon(FName WeaponID, FName BoneID);
+	virtual void InitializeWeapon(FName WeaponID, FName BoneID) override;
 
 	UFUNCTION(BlueprintCallable)
 	void CheckForHitScan(bool bIsAiming);
 
-	void SetDefaultRotation();
+	virtual void SetDefaultRotation() override;
 
-	void SetRotation(const FQuat& QuatRotation);
+	virtual void SetRotation(const FQuat& QuatRotation) override;
 
-	FVector GetArrowForwardVector() const;
+	virtual FVector GetArrowForwardVector() const override;
 
-	FQuat GetAimingRotation(const FVector& TargetVector) const;
-
-//INTEFACE
+	virtual FQuat GetAimingRotation(const FVector& TargetVector) const override;
+//INTERFACE
 	virtual void SetWeaponID_Implementation(FName WeaponID) override;
 	virtual void SetBoneID_Implementation(FName BoneID) override;
 	virtual FName GetWeaponID_Implementation() override;
 	virtual FName GetBoneID_Implementation() override;
-	
+	virtual FQuat GetDefaultRoationQuat() const override;
+	virtual void SetSpringArmComponent(USpringArmComponent* SpringArmComponent) override;
+	virtual USpringArmComponent* GetSpringArmComponent() const override;
 private:
 	FQuat TargetRotationQuat;
 	FQuat InitialForwardQuat;

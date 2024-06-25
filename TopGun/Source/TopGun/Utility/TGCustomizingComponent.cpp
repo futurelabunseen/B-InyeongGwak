@@ -201,6 +201,21 @@ void UTGCustomizingComponent::SpawnModule(FName WeaponID) const
 	}
 }
 
+void UTGCustomizingComponent::AlterModuleComponent(FName WeaponID)
+{
+	if(MyGameInstance.IsValid() && MyGameInstance->ModuleDataAsset)
+	{
+		ATGCustomizingCharacterBase* MyCharacter = Cast<ATGCustomizingCharacterBase>(GetOwner());
+		const FMeshCategoryData* TargetData = MyGameInstance->ModuleDataAsset->BaseMeshComponent.Find(WeaponID);
+		MyGameInstance->ModuleBodyPartIndex[TargetData->Category] = WeaponID;
+		MyCharacter->CharacterPartsMap[TargetData->Category]->SetSkeletalMesh(MyGameInstance->ModuleDataAsset->GetMeshByID(WeaponID));
+	} else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AlterModuleComponent:: id : %s, null"), *WeaponID.ToString());
+	}
+}
+
+
 bool UTGCustomizingComponent::AttachWeapon() const
 {
 	if (!MySkeletalMeshComponent)
@@ -220,13 +235,9 @@ bool UTGCustomizingComponent::AttachWeapon() const
 		UE_LOG(LogTemp, Error, TEXT("WeaponDataAsset is null."));
 		return false;
 	}
-    
-
 	AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(CurrentSpawnedActor->GetClass(), MySkeletalMeshComponent->GetComponentLocation(), FRotator::ZeroRotator);
 	ClonedActor->AttachToComponent(MySkeletalMeshComponent, FAttachmentTransformRules::SnapToTargetIncludingScale, CurrentTargetBone);
 	ClonedActor->SetActorEnableCollision(true);
-	
-
 	if (ClonedActor->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()) && CurrentSpawnedActor->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()))
 	{
 		const FName TempWeaponID = ITGWeaponInterface::Execute_GetWeaponID(CurrentSpawnedActor);
@@ -293,6 +304,7 @@ bool UTGCustomizingComponent::IsWeaponNearBone()
 			if (ClosestBoneDistance < SnapCheckDistance)
 			{
 				SnapActor(ClosestBoneLocation, ClosestBoneDistance, ClosestBoneName);
+				return true;
 			} else
 			{
 				return false;

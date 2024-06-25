@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/EngineTypes.h"
 #include "Utility/TGModuleSystem.h"
 #include "TGCustomizingCharacterBase.generated.h"
 
@@ -21,12 +23,19 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	USkeletalMeshComponent* mySkeletalMeshComponent;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Customization")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Customization")
 	class UTGCustomizingComponent* CustomizingComponent;
+
+	UPROPERTY()
 	TWeakObjectPtr<UTGCGameInstance> MyGameInstance;
 
+	UPROPERTY()
+	TMap<E_PartsCode, USkeletalMeshComponent*> CharacterPartsMap;
+	
 protected:
 	virtual void BeginPlay() override;
 	void SetupPlayerModel(USkeletalMeshComponent* TargetMesh) const;
 	virtual void Tick(float DeltaSeconds) override;
+
+	
 };
