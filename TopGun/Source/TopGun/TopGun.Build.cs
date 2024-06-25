@@ -1,5 +1,3 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 using UnrealBuildTool;
 
 public class TopGun : ModuleRules
@@ -7,22 +5,40 @@ public class TopGun : ModuleRules
 	public TopGun(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
-		PublicIncludePaths.AddRange(new string[] { "TopGun" });
-		
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "AIModule" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] {
+		PublicIncludePaths.AddRange(new string[] { "TopGun" });
+
+		PublicDependencyModuleNames.AddRange(new string[] 
+		{ 
+			"Core", 
+			"CoreUObject", 
+			"Engine", 
+			"InputCore", 
+			"EnhancedInput", 
+			"UMG", 
+			"AIModule" 
+		});
+
+		PrivateDependencyModuleNames.AddRange(new string[] 
+		{
 			"GameFeatures",
 			"GameplayAbilities",
 			"GameplayTasks",
 			"GameplayTags"
 		});
 
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[] 
+			{
+				"AutomationController",
+				"EditorScriptingUtilities"
+			});
+		}
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-		
+
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 

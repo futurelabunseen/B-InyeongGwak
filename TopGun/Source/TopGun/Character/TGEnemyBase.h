@@ -18,7 +18,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	virtual void Die() override;
+	//virtual void Die() override;
 public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -27,8 +27,8 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FOnDeathDelegate OnDeath;
 
-	UFUNCTION()
-	void DropItem();
+	//UFUNCTION()
+	//void DropItem();
 	
 
 	UFUNCTION()

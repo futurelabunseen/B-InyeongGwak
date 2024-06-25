@@ -5,15 +5,12 @@
 #include "Camera/CameraComponent.h"
 #include "Components/ScrollBox.h"
 #include "Blueprint/UserWidget.h"
-#include "Utility/TGModuleDataAsset.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "Math/Vector.h"
 #include "Engine/World.h"
 #include "Weapon/TGBaseWeapon.h"
 #include "Character/TGCustomizingCharacterBase.h"
-#include "GameInstance/TGGameInstance.h"
-#include "Kismet/GameplayStatics.h"
 
 ATGCustomizingPlayerController::ATGCustomizingPlayerController()
 {
@@ -24,32 +21,20 @@ ATGCustomizingPlayerController::ATGCustomizingPlayerController()
 void ATGCustomizingPlayerController::BeginPlay()
 {
     Super::BeginPlay();
-    MyGameInstance = Cast<UTGCGameInstance>(GetGameInstance());
-    if (!MyGameInstance.IsValid())
-    {
-        UE_LOG(LogTemp, Error, TEXT("Failed to cast GameInstance to UTGCGameInstance."));
-        FGenericPlatformMisc::RequestExit(false);
-        return;
-    }
-
-    WeaponDataAsset = TWeakObjectPtr<UTGWeaponDataAsset>(MyGameInstance->WeaponDataAsset);
-    ModuleDataAsset = TWeakObjectPtr<UTGModuleDataAsset>(MyGameInstance->ModuleDataAsset);
-
-    if (!WeaponDataAsset.IsValid() || !ModuleDataAsset.IsValid())
-    {
-        UE_LOG(LogTemp, Error, TEXT("DataAsset is null."));
-        FGenericPlatformMisc::RequestExit(false);
-        return;
-    }
 
     PrimaryActorTick.bCanEverTick = true;
     PrimaryActorTick.bStartWithTickEnabled = true;
-
-    ACharacter* MyCharacter = GetCharacter();
-    if (MyCharacter)
+    if (ACharacter* MyCharacter = GetCharacter())
     {
-        MySkeletalMeshComponent = MyCharacter->GetMesh();
         MyCharacter->SetActorEnableCollision(false);
+        //TEMP
+        MyCustomizingComponent = MyCharacter->FindComponentByClass<UTGCustomizingComponent>();
+        if (!MyCustomizingComponent)
+        {
+            UE_LOG(LogTemp, Error, TEXT("CustomizingComponent is not found."));
+            FGenericPlatformMisc::RequestExit(false);
+            return;
+        }
     }
     bShowMouseCursor = true;
     bEnableClickEvents = true;
@@ -83,21 +68,88 @@ void ATGCustomizingPlayerController::SetupInputComponent()
 void ATGCustomizingPlayerController::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    UpdateState();
+}
+
+void ATGCustomizingPlayerController::UpdateState()
+{
+    switch (CurrentState)
+    {
+    case ECustomizingState::Idle:
+        HandleIdleState();
+        break;
+    case ECustomizingState::OnDragActor:
+        HandleDragState();
+        break;
+    case ECustomizingState::OnSnappedActor:
+        HandleSnappedState();
+        break;
+    case ECustomizingState::OnRotateActor:
+        HandleRotateState();
+        break;
+    }
+}
+
+void ATGCustomizingPlayerController::HandleIdleState()
+{
+    // Logic for idle state
+}
+
+void ATGCustomizingPlayerController::HandleDragState()
+{
+    UpdateWeaponActorPosition();
+    if (MyCustomizingComponent->IsWeaponNearBone())
+    {
+        EnterSnappedState();
+    }
+}
+
+void ATGCustomizingPlayerController::HandleSnappedState()
+{
+    CheckSnappedCancellation();
+}
+
+void ATGCustomizingPlayerController::HandleRotateState()
+{
+    MyCustomizingComponent->DrawDebugHighlight();
+}
+
+void ATGCustomizingPlayerController::EnterIdleState()
+{
+    CurrentState = ECustomizingState::Idle;
+}
+
+void ATGCustomizingPlayerController::EnterDragState()
+{
+    CurrentState = ECustomizingState::OnDragActor;
+}
+
+void ATGCustomizingPlayerController::EnterSnappedState()
+{
+    CurrentState = ECustomizingState::OnSnappedActor;
+}
+
+void ATGCustomizingPlayerController::EnterRotateState()
+{
+    CurrentState = ECustomizingState::OnRotateActor;
+}
+
+void ATGCustomizingPlayerController::ReturnToIdleState()
+{
     switch (CurrentState)
     {
     case ECustomizingState::Idle:
         break;
     case ECustomizingState::OnDragActor:
-        UpdateWeaponActorPosition();
-        CheckWeaponActorProximity();
         break;
     case ECustomizingState::OnSnappedActor:
-        CheckSnappedCancellation();
         break;
     case ECustomizingState::OnRotateActor:
-        DrawDebugHighlight();
+        MyCustomizingComponent->SaveRotationData();
         break;
     }
+    MyCustomizingComponent->ResetHoldingData();
+    EnterIdleState();
 }
 
 void ATGCustomizingPlayerController::OnRotateAction(const FInputActionValue& Value)
@@ -134,12 +186,12 @@ void ATGCustomizingPlayerController::OnRotateCharacter(const FInputActionValue& 
 
 void ATGCustomizingPlayerController::OnEnterAction()
 {
-    MyGameInstance->ChangeLevel(TargetLevelName);
+    MyCustomizingComponent->MyGameInstance->ChangeLevel(TargetLevelName);
 }
 
 void ATGCustomizingPlayerController::OnRotateWeaponActor()
 {
-    if (!bIsDragging || !CurrentRotationSelectedActor.IsValid())
+    if (!bIsDragging)
     {
         return;
     }
@@ -161,12 +213,12 @@ void ATGCustomizingPlayerController::OnRotateWeaponActor()
     if (FMath::Abs(MouseDelta.Y) > KINDA_SMALL_NUMBER)
     {
         float PitchValue = MouseDelta.Y * RotationSpeed * MouseSensitivity;
-        QuatRotation *= FQuat(FRotator(0.0f, 0.0f, PitchValue));
+        QuatRotation *= FQuat(FRotator(0.0f, 0.0f, -1.0f * PitchValue));
     }
-    
+
     if (!QuatRotation.IsIdentity())
     {
-        CurrentRotationSelectedActor->AddActorLocalRotation(QuatRotation, false, nullptr, ETeleportType::None);
+        MyCustomizingComponent->SetWeaponRotation(QuatRotation);
     }
 }
 
@@ -195,7 +247,10 @@ void ATGCustomizingPlayerController::OnClickLeftMouse()
     case ECustomizingState::OnDragActor:
         break;
     case ECustomizingState::OnSnappedActor:
-        AttachWeapon();
+        if (MyCustomizingComponent->AttachWeapon())
+        {
+            ReturnToIdleState();
+        }
         break;
     case ECustomizingState::OnRotateActor:
         OnRotateWeaponActor();
@@ -242,30 +297,23 @@ void ATGCustomizingPlayerController::StopMouseDrag()
 
 void ATGCustomizingPlayerController::TryFindRotatingTargetActor()
 {
-    UE_LOG(LogTemp, Warning, TEXT("Try Find Rotation Target"));
-    TWeakObjectPtr<AActor> TargetActor = FindTargetActorUnderMouse();
-    if (TargetActor.IsValid())
+    AActor* TempActor = FindTargetActorUnderMouse();
+    if(!TempActor)
+        return;
+    ATGBaseWeapon* HitWeapon = Cast<ATGBaseWeapon>(TempActor);
+    if(!HitWeapon)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Found Rotation Target"));
-        CurrentRotationSelectedActor = TargetActor;
-        CurrentState = ECustomizingState::OnRotateActor;
+        UE_LOG(LogTemp, Warning, TEXT("FindingRotatingTarget Actor : %s is not Weapon"), *TempActor->GetActorNameOrLabel());
+        return;
     }
+    UE_LOG(LogTemp, Warning, TEXT("FindingRotatingTarget Taget : %s"), *HitWeapon->GetActorNameOrLabel());
+    UE_LOG(LogTemp, Warning, TEXT("Finding Rotating Target : Found Rotation Target"));
+    MyCustomizingComponent->SetCurrentRotationSelectedActor(TempActor);
+    EnterRotateState();
+    TempActor = nullptr;
 }
 
-
-
-void ATGCustomizingPlayerController::DrawDebugHighlight()
-{
-    if (CurrentRotationSelectedActor.IsValid())
-    {
-        FVector ActorLocation = CurrentRotationSelectedActor->GetActorLocation();
-        float SphereRadius = 2.0f; 
-        FColor SphereColor = FColor::Red; 
-        DrawDebugSphere(GetWorld(), ActorLocation, SphereRadius, 12, SphereColor, false, -1.0f, 0, 2.0f);
-    }
-}
-
-AActor* ATGCustomizingPlayerController::FindTargetActorUnderMouse()
+AActor* ATGCustomizingPlayerController::FindTargetActorUnderMouse() const
 {
     float MouseX, MouseY;
     if (GetMousePosition(MouseX, MouseY))
@@ -294,7 +342,7 @@ AActor* ATGCustomizingPlayerController::FindTargetActorUnderMouse()
 void ATGCustomizingPlayerController::RemoveWeaponInDesiredPosition()
 {
     ATGBaseWeapon* HitWeapon = Cast<ATGBaseWeapon>(FindTargetActorUnderMouse());
-    RemoveWeaponFromCharacter(HitWeapon);
+    MyCustomizingComponent->RemoveWeaponFromCharacter(HitWeapon);
 }
 
 void ATGCustomizingPlayerController::OnClickEscape()
@@ -304,50 +352,12 @@ void ATGCustomizingPlayerController::OnClickEscape()
 
 void ATGCustomizingPlayerController::UpdateWeaponActorPosition()
 {
-    if (GetPawn())
+    if (GetPawn() && MyCustomizingComponent)
     {
-            FVector WorldLocation, WorldDirection;
-            if (DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
-            {
-                FVector PlaneNormal = FVector(1, 0, 0);
-                FVector PlanePoint = FVector(0, 0, 100);
-                FVector FarPoint = WorldLocation + WorldDirection * 10000;
-                FVector IntersectionPoint = FMath::LinePlaneIntersection(WorldLocation, FarPoint, PlanePoint, PlaneNormal);
-                if (CurrentSpawnedActor.IsValid())
-                {
-                    CurrentSpawnedActor->SetActorLocation(IntersectionPoint);
-                }
-            }
-    }
-}
-
-void ATGCustomizingPlayerController::RemoveWeaponFromCharacter(ATGBaseWeapon* WeaponToRemove) const
-{
-    if (WeaponToRemove)
-    {
-        MyGameInstance->AttachedActorsMap.FindAndRemoveChecked(WeaponToRemove->BoneID);
-        WeaponToRemove->Destroy();
-        WeaponToRemove = nullptr;
-    }
-}
-
-void ATGCustomizingPlayerController::CheckWeaponActorProximity()
-{
-    if (MySkeletalMeshComponent && CurrentSpawnedActor.IsValid())
-    {
-        FVector TargetLocation = CurrentSpawnedActor->GetActorLocation();
-        FVector ClosestBoneLocation;
-        FName ClosestBoneName = MySkeletalMeshComponent->FindClosestBone(TargetLocation, &ClosestBoneLocation);
-        if (!ClosestBoneName.IsNone())
+        FVector WorldLocation, WorldDirection;
+        if (DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
         {
-            float ClosestBoneDistance = FVector::Dist(TargetLocation, ClosestBoneLocation);
-            if (ClosestBoneDistance < SnapCheckDistance)
-            {
-                CurrentState = ECustomizingState::OnSnappedActor;
-                CurrentSpawnedActor->SetActorLocation(ClosestBoneLocation);
-                CurrentTargetBone = ClosestBoneName;
-                UE_LOG(LogTemp, Log, TEXT("Found Spot! Bone :%s"), *ClosestBoneName.ToString());
-            }
+            MyCustomizingComponent->UpdateWeaponActorPosition(WorldLocation, WorldDirection);
         }
     }
 }
@@ -360,103 +370,12 @@ void ATGCustomizingPlayerController::CheckSnappedCancellation()
         FVector WorldLocation, WorldDirection;
         if (DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
         {
-            if (FVector::Distance(CurrentSpawnedActor->GetActorLocation(), WorldLocation) > 10)
+            if (FVector::Distance(MyCustomizingComponent->CurrentSpawnedActor->GetActorLocation(), WorldLocation) > 10)
             {
-                CurrentState = ECustomizingState::OnDragActor;
+                MyCustomizingComponent->UnSnapActor();
+                EnterDragState();
             }
         }
-    }
-}
-
-void ATGCustomizingPlayerController::AttachWeapon()
-{
-    if (!MySkeletalMeshComponent)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("SkeletalMeshComponent is not valid."));
-        return;
-    }
-
-    if (!CurrentSpawnedActor.IsValid())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("CurrentSpawnedActor is not valid or not spawned."));
-        return;
-    }
-
-    if (!WeaponDataAsset.IsValid())
-    {
-        UE_LOG(LogTemp, Error, TEXT("WeaponDataAsset is null."));
-        return;
-    }
-    
-
-    AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(CurrentSpawnedActor->GetClass(), MySkeletalMeshComponent->GetComponentLocation(), FRotator::ZeroRotator);
-    ClonedActor->AttachToComponent(MySkeletalMeshComponent, FAttachmentTransformRules::SnapToTargetIncludingScale, CurrentTargetBone);
-    ClonedActor->SetActorEnableCollision(true);
-    ATGBaseWeapon* ClonedWeaponActor = Cast<ATGBaseWeapon>(ClonedActor);
-    ATGBaseWeapon* OriginalWeaponActor = Cast<ATGBaseWeapon>(CurrentSpawnedActor);
-    if (!OriginalWeaponActor || !ClonedWeaponActor)
-    {
-        UE_LOG(LogTemp, Error, TEXT("Failed to cast into weapon class."));
-        return;
-    }
-    FName TempWeaponID = OriginalWeaponActor->WeaponID;
-    ClonedWeaponActor->WeaponID = TempWeaponID;
-    ClonedWeaponActor->BoneID = CurrentTargetBone;
-    FAttachedActorData TempData(TempWeaponID, ClonedActor->GetActorRotation());
-    MyGameInstance->AttachedActorsMap.Add(CurrentTargetBone, TempData);
-    if (!ClonedActor)
-    {
-        UE_LOG(LogTemp, Error, TEXT("Failed to spawn cloned actor."));
-        return;
-    }
-    ReturnToIdleState();
-}
-
-void ATGCustomizingPlayerController::ReturnToIdleState()
-{
-    switch (CurrentState)
-    {
-    case ECustomizingState::Idle:
-        break;
-    case ECustomizingState::OnDragActor:
-        break;
-    case ECustomizingState::OnSnappedActor:
-        break;
-    case ECustomizingState::OnRotateActor:
-        SaveRotationData();
-        break;
-    }
-    ResetHoldingData();
-    CurrentState = ECustomizingState::Idle;
-}
-
-void ATGCustomizingPlayerController::SaveRotationData() const
-{
-    ATGBaseWeapon* WeaponActor = Cast<ATGBaseWeapon>(CurrentRotationSelectedActor);
-    if (WeaponActor)
-    {
-        UE_LOG(LogTemp, Log, TEXT("target BoneID : %s"), *WeaponActor->BoneID.ToString());
-        FName TargetID = WeaponActor->BoneID;
-        FAttachedActorData* FoundActorData = MyGameInstance->AttachedActorsMap.Find(TargetID);
-        if (FoundActorData)
-        {
-            FoundActorData->Rotation = CurrentRotationSelectedActor->GetActorRotation();
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Actor data not found for TargetID: %s"), *TargetID.ToString());
-        }
-    }
-}
-
-void ATGCustomizingPlayerController::ResetHoldingData()
-{
-    if (CurrentSpawnedActor.IsValid())
-    {
-        CurrentSpawnedActor->Destroy();
-        CurrentTargetBone = FName();
-        CurrentSpawnedActor = nullptr;
-        CurrentRotationSelectedActor = nullptr;
     }
 }
 
@@ -471,101 +390,57 @@ void ATGCustomizingPlayerController::AddButtonToPanel(UScrollBox* TargetPanel, T
 
 void ATGCustomizingPlayerController::AddWeaponButtonToPanel(UScrollBox* TargetPanel)
 {
-    if (!WeaponDataAsset.Get())
+    if (MyCustomizingComponent)
     {
-        UE_LOG(LogTemp, Error, TEXT("WeaponDataAsset is null."));
-        return;
-    }
-
-    ATGCustomizingCharacterBase* MyCharacter = Cast<ATGCustomizingCharacterBase>(GetCharacter());
-    if (MyCharacter && MyCharacter->CustomizingComponent)
-    {
-        MyCharacter->CustomizingComponent->AddWeaponButtonToPanel(TargetPanel, WeaponDataAsset.Get());
+        MyCustomizingComponent->AddWeaponButtonToPanel(TargetPanel);
     }
 }
 
 void ATGCustomizingPlayerController::AddModuleButtonToPanel(UScrollBox* TargetPanel)
 {
-    if (!ModuleDataAsset.IsValid())
+    if (MyCustomizingComponent)
     {
-        UE_LOG(LogTemp, Error, TEXT("ModuleDataAsset is null."));
-        return;
-    }
-
-    ATGCustomizingCharacterBase* MyCharacter = Cast<ATGCustomizingCharacterBase>(GetCharacter());
-    if (MyCharacter && MyCharacter->CustomizingComponent)
-    {
-        MyCharacter->CustomizingComponent->AddModuleButtonToPanel(TargetPanel, ModuleDataAsset.Get());
+        MyCustomizingComponent->AddModuleButtonToPanel(TargetPanel);
     }
 }
 
 void ATGCustomizingPlayerController::OnWeaponSelected(FName WeaponID)
 {
-    if (!WeaponDataAsset.IsValid())
+    if (MyCustomizingComponent)
     {
-        UE_LOG(LogTemp, Error, TEXT("WeaponDataAsset is null."));
-        return;
+        UE_LOG(LogTemp, Log, TEXT("Entering OnWeaponSelected with state: %d"), static_cast<int32>(CurrentState));
+
+        EnterIdleState();
+        
+        if (MyCustomizingComponent->CurrentSpawnedActor)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Destroying CurrentSpawnedActor"));
+            MyCustomizingComponent->CurrentSpawnedActor->Destroy();
+            MyCustomizingComponent->CurrentSpawnedActor = nullptr;  // Reset the pointer after destruction
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CurrentSpawnedActor already null."));
+        }
+
+        MyCustomizingComponent->SpawnCurrentWeapon(WeaponID);
+        EnterDragState();
+        UE_LOG(LogTemp, Log, TEXT("Completed OnWeaponSelected, state: %d"), static_cast<int32>(CurrentState));
     }
-
-    ATGCustomizingCharacterBase* MyCharacter = Cast<ATGCustomizingCharacterBase>(GetCharacter());
-    if (MyCharacter && MyCharacter->CustomizingComponent)
+    else
     {
-        if (CurrentSpawnedActor.IsValid())
-        {
-            CurrentSpawnedActor->Destroy();
-        }
-
-        UBlueprintGeneratedClass* WeaponClass = MyCharacter->CustomizingComponent->GetWeaponClassById(WeaponID, WeaponDataAsset.Get());
-        if (WeaponClass)
-        {
-            FActorSpawnParameters SpawnParameters;
-            SpawnParameters.Owner = GetPawn();
-            SpawnParameters.Instigator = GetPawn()->GetInstigator();
-
-            CurrentSpawnedActor = GetWorld()->SpawnActor<AActor>(WeaponClass, GetPawn()->GetActorLocation(), GetPawn()->GetActorRotation(), SpawnParameters);
-            CurrentSpawnedActor->SetActorEnableCollision(false);
-            ATGBaseWeapon* WeaponActor = Cast<ATGBaseWeapon>(CurrentSpawnedActor);
-            if (!WeaponActor)
-            {
-                UE_LOG(LogTemp, Error, TEXT("Failed to cast into weapon class."));
-                return;
-            }
-            WeaponActor->WeaponID = WeaponID;
-
-            if (!CurrentSpawnedActor.IsValid())
-            {
-                UE_LOG(LogTemp, Error, TEXT("Failed to spawn weapon."));
-                return;
-            }
-
-            CurrentState = ECustomizingState::OnDragActor;
-        }
+        UE_LOG(LogTemp, Error, TEXT("CustomizingComponent is not valid."));
     }
 }
 
 void ATGCustomizingPlayerController::OnModuleSelected(FName WeaponID)
 {
-    if (!ModuleDataAsset.IsValid())
+    if (MyCustomizingComponent)
     {
-        UE_LOG(LogTemp, Error, TEXT("ModuleDataAsset is null."));
-        return;
+        MyCustomizingComponent->SpawnModule(WeaponID);
     }
-
-    ATGCustomizingCharacterBase* MyCharacter = Cast<ATGCustomizingCharacterBase>(GetCharacter());
-    if (MyCharacter && MyCharacter->CustomizingComponent)
+    else
     {
-        const FMeshCategoryData* TargetData = ModuleDataAsset->BaseMeshComponent.Find(WeaponID);
-        MyGameInstance->ModuleBodyPartIndex[TargetData->Category] = WeaponID;
-        UClass* AnimClass = MyCharacter->GetMesh()->GetAnimClass();
-        USkeleton* Skeleton = MyCharacter->GetMesh()->GetSkeletalMeshAsset()->GetSkeleton();
-        USkeletalMesh* MergedMesh = MyCharacter->CustomizingComponent->GetMergedCharacterParts(MyGameInstance->ModuleBodyPartIndex, ModuleDataAsset.Get());
-        if (MergedMesh == nullptr)
-        {
-            UE_LOG(LogTemp, Error, TEXT("Failed to merge Mesh."));
-            return;
-        }
-        MergedMesh->USkeletalMesh::SetSkeleton(Skeleton);
-        MyCharacter->GetMesh()->SetSkeletalMesh(MergedMesh);
-        MyCharacter->GetMesh()->SetAnimInstanceClass(AnimClass);
+        UE_LOG(LogTemp, Error, TEXT("CustomizingComponent is not valid."));
     }
 }

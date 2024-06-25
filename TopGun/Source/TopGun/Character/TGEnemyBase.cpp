@@ -5,6 +5,7 @@
 #include "Engine/DamageEvents.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Controller.h"
+#include "Utility/TGCharacterStatComponent.h"
 
 ATGEnemyBase::ATGEnemyBase()
 {
@@ -13,10 +14,9 @@ ATGEnemyBase::ATGEnemyBase()
     MyAIController = Cast<AAIController>(GetController());
     
     PrimaryActorTick.bCanEverTick = true;
-    //TEMP Later create DefaultVariables
-    Health = 50.0f;
+    Stat->SetHp(50);
     ContactDamage = 10.0f;
-    KnockBackAmount = 1500;
+    KnockBackAmount = 15;
 }
 
 void ATGEnemyBase::BeginPlay()
@@ -34,7 +34,7 @@ void ATGEnemyBase::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
 
-
+/*
 void ATGEnemyBase::Die()
 {
     OnDeath.Broadcast();
@@ -47,7 +47,7 @@ void ATGEnemyBase::DropItem()
 {
 
 }
-
+*/
 
 
 void ATGEnemyBase::NotifyHit(UPrimitiveComponent* MyComp, AActor* Other, UPrimitiveComponent* OtherComp,

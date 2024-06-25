@@ -5,7 +5,7 @@
 #include "Utility/TGModuleSystem.h"
 #include "TGCustomizingCharacterBase.generated.h"
 
-UCLASS()
+UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class TOPGUN_API ATGCustomizingCharacterBase : public ACharacter
 {
 	GENERATED_BODY()

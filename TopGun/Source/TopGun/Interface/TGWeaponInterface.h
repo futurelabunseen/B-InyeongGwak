@@ -18,5 +18,18 @@ class TOPGUN_API ITGWeaponInterface
 
 public:
 	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent)
-	void FunctionFireWeapon(bool FiringHeld, bool ReadyFiring, USceneComponent * CameraComponent);
+	void FunctionFireWeapon(bool FiringHeld, bool HitScan, bool ReadyFiring, USceneComponent * CameraComponent);
+
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	void SetWeaponID(FName WeaponID);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	void SetBoneID(FName BoneID);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	FName GetWeaponID();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	FName GetBoneID();
 };

@@ -33,7 +33,7 @@ public:
 	void InitializeWeapon(FName WeaponID, FName BoneID);
 
 	UFUNCTION(BlueprintCallable)
-	void CheckForHitScan();
+	void CheckForHitScan(bool bIsAiming);
 
 	void SetDefaultRotation();
 
@@ -43,6 +43,12 @@ public:
 
 	FQuat GetAimingRotation(const FVector& TargetVector) const;
 
+//INTEFACE
+	virtual void SetWeaponID_Implementation(FName WeaponID) override;
+	virtual void SetBoneID_Implementation(FName BoneID) override;
+	virtual FName GetWeaponID_Implementation() override;
+	virtual FName GetBoneID_Implementation() override;
+	
 private:
 	FQuat TargetRotationQuat;
 	FQuat InitialForwardQuat;

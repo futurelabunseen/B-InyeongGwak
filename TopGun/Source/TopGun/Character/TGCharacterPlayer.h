@@ -29,6 +29,7 @@ class TOPGUN_API ATGCharacterPlayer : public ATGCharacterBase
 	GENERATED_BODY()
 public :
 	ATGCharacterPlayer();
+	virtual ~ATGCharacterPlayer();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USkeletalMeshComponent> PlayerMesh;
@@ -36,14 +37,13 @@ public :
 protected:
 	virtual void BeginPlay() override;
 	void SetupPlayerModel(USkeletalMeshComponent* TargetMesh);
+	void AttackCall(bool isFiring);
 	void Walk(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
-	void AimLook(const FInputActionValue& Value);
 	void ResetWeaponRotations();
 	void SetWeaponRotations();
-	void Fly(const FInputActionValue& Value);
 
-
+	virtual void Tick(float DeltaSeconds) override;
 	
 	//CharacterSetting
 protected:
@@ -60,7 +60,8 @@ protected:
 public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	void SwitchScene();
-	void Attack();
+	void AttackStart();
+	void AttackEnd();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	FVector CameraOffsetWhenAiming = FVector(50.0f, 50.0f, 0.0f);;
@@ -118,7 +119,6 @@ private:
 	TMap<E_PartsCode, int32> BodyPartIndex;
 	TWeakObjectPtr<UTGCGameInstance> MyGameInstance;
 	TMap<FName, AActor*> WeaponMap;
-	FVector OriginalCameraOffset;
 	UFUNCTION()
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
 	UFUNCTION()
@@ -129,5 +129,8 @@ public:
 	TMap<FString, AActor*> SocketActors;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CharacterSocket")
 	TArray<FString> socketNames = { TEXT("HeadSocket"), TEXT("HandSocket"), TEXT("FootSocket") };
-	
+private:
+	FVector OriginalCameraOffset;
+	FVector TargetCameraOffset;
+	float InterpSpeed = 5.0f;	
 };

@@ -6,7 +6,6 @@
 #include "GameInstance/TGGameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "Physics/TGCollision.h"
 
 ATGBaseWeapon::ATGBaseWeapon()
 {
@@ -38,6 +37,27 @@ FQuat ATGBaseWeapon::GetAimingRotation(const FVector& TargetVector) const
     return LookRotation.Quaternion();
 }
 
+void ATGBaseWeapon::SetWeaponID_Implementation(FName InWeaponID)
+{
+    this->WeaponID = InWeaponID;
+}
+
+void ATGBaseWeapon::SetBoneID_Implementation(FName InBoneID)
+{
+    this->BoneID = InBoneID;
+}
+
+FName ATGBaseWeapon::GetWeaponID_Implementation()
+{
+    return WeaponID;
+}
+
+FName ATGBaseWeapon::GetBoneID_Implementation()
+{
+    return BoneID;
+}
+
+
 void ATGBaseWeapon::InitializeWeapon(FName PWeaponID, FName PBoneID)
 {
     WeaponID = PWeaponID;
@@ -45,48 +65,43 @@ void ATGBaseWeapon::InitializeWeapon(FName PWeaponID, FName PBoneID)
     SetDefaultRotation();
 }
 
-void ATGBaseWeapon::CheckForHitScan()
+
+void ATGBaseWeapon::CheckForHitScan(bool bIsAiming)
 {
     UArrowComponent* ArrowComponent = FindComponentByClass<UArrowComponent>();
     if (ArrowComponent != nullptr)
     {
-        const FVector StartLocation = ArrowComponent->GetComponentLocation();
-        const FVector EndLocation = StartLocation + (ArrowComponent->GetForwardVector() * 20000.0f);
+        ACharacter* PlayerActor = UGameplayStatics::GetPlayerCharacter(GetWorld(),0);
+        const FVector StartLocation = bIsAiming==true?(PlayerActor->GetActorLocation()+FVector(0, 0, 70)):ArrowComponent->GetComponentLocation();
+        const FVector EndLocation = StartLocation + (ArrowComponent->GetForwardVector() * 1000.0f);
 
         FCollisionObjectQueryParams ObjectParams;
         ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
-
+        
         FHitResult OutHitResult;
         FCollisionQueryParams Params(SCENE_QUERY_STAT(Attack), false, this);
-        Params.AddIgnoredActor(UGameplayStatics::GetPlayerCharacter(GetWorld(),0));
-        
+        Params.AddIgnoredActor(PlayerActor);
         if (bool HitDetected = GetWorld()->LineTraceSingleByObjectType(OutHitResult, StartLocation, EndLocation, ObjectParams, Params))
         {
             ATGCharacterBase* HitEnemy = Cast<ATGCharacterBase>(OutHitResult.GetActor());
             if (HitEnemy)
             {
+                UE_LOG(LogTemp, Log, TEXT("Weapon %s Hit Actor : %s"), *this->GetActorNameOrLabel(), *OutHitResult.GetActor()->GetActorNameOrLabel());
                 FVector KnockbackDirection = OutHitResult.ImpactPoint - GetActorLocation();
                 KnockbackDirection.Normalize();
                 FDamageEvent DamageEvent;
                 HitEnemy->TakeDamage(AttackDamage, DamageEvent, GetWorld()->GetFirstPlayerController(), this);
-                UE_LOG(LogTemp, Log, TEXT("Hit Enemy"));
-                DrawDebugLine(GetWorld(), StartLocation, OutHitResult.Location, FColor::Green, false, 2.0f, 0, 0.5f);
-                UE_LOG(LogTemp, Warning, TEXT("HIT : ENEMY"));
-
             }
             else
             {
+                UE_LOG(LogTemp, Log, TEXT("Weapon %s Hit Actor : %s"), *this->GetActorNameOrLabel(), *OutHitResult.GetActor()->GetActorNameOrLabel());
                 DrawDebugLine(GetWorld(), StartLocation, OutHitResult.Location, FColor::Yellow, false, 2.0f, 0, 0.5f);
                 DrawDebugSphere(GetWorld(), OutHitResult.GetActor()->GetActorLocation(), 10.0f, 12, FColor::Yellow, false, 2.0f);
-                UE_LOG(LogTemp, Warning, TEXT("HIT : NONENEMY"));
-
             }
         } else
         {
+            UE_LOG(LogTemp, Log, TEXT("Weapon %s Hit Actor : no result"), *this->GetActorNameOrLabel());
             DrawDebugLine(GetWorld(), StartLocation, EndLocation, FColor::Red, false, 2.0f, 0, 0.5f);
-            DrawDebugSphere(GetWorld(), EndLocation, 10.0f, 12, FColor::Red, false, 2.0f);
-            UE_LOG(LogTemp, Warning, TEXT("HIT : NOHIT"));
-
         }
 
     }

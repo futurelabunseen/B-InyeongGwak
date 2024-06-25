@@ -9,8 +9,9 @@
 #include "GameInstance/TGGameInstance.h"
 #include "Utility/TGWeaponDataAsset.h"
 #include "Interface/TGWeaponInterface.h"
+#include "Kismet/GameplayStatics.h"
 #include "Weapon/TGBaseWeapon.h"
-#include "Physics/TGCollision.h"
+#include "Utility/TGCharacterStatComponent.h"
 
 
 ATGCharacterPlayer::ATGCharacterPlayer()
@@ -31,14 +32,40 @@ ATGCharacterPlayer::ATGCharacterPlayer()
     GetMesh()->SetCollisionProfileName(TEXT("NoCollision"));
     
     CurrentCharacterControlType = ECharacterControlType::Walking;
-    Health = 300;
-    KnockBackAmount = 2000;
+    Stat->SetHp(300);
+    KnockBackAmount = 20;
+}
+
+ATGCharacterPlayer::~ATGCharacterPlayer()
+{// Log the destruction for debugging purposes
+    UE_LOG(LogTemp, Warning, TEXT("Destructor for ATGCharacterPlayer called."));
+
+    // Ensure the game instance is properly cleaned up
+    MyGameInstance.Reset();
+
+    // Clean up any dynamically allocated resources or registered events here
+    for (auto& Elem : WeaponMap)
+    {
+        if (AActor* WeaponActor = Elem.Value)
+        {
+            WeaponActor->Destroy();
+        }
+    }
+
+    WeaponMap.Empty();
+
+    // If any other components or resources need explicit cleanup, do it here
+    // Example:
+    // if (SomeComponent)
+    // {
+    //     SomeComponent->DestroyComponent();
+    //     SomeComponent = nullptr;
+    // }
 }
 
 void ATGCharacterPlayer::BeginPlay()
 {
     Super::BeginPlay();
-    SetCharacterControl(CurrentCharacterControlType);
     MyGameInstance = Cast<UTGCGameInstance>(GetGameInstance());
     if (!MyGameInstance.IsValid())
     {
@@ -55,13 +82,20 @@ void ATGCharacterPlayer::BeginPlay()
             placeholder->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName(*socketName));
         }
     }
-    OriginalCameraOffset = FollowCamera->GetRelativeLocation();
-
+    OriginalCameraOffset =  OriginalCameraOffset = FollowCamera->GetRelativeLocation();
+    TargetCameraOffset = OriginalCameraOffset + FVector(0.0f, 0.0f, 100.0f);
     SetupPlayerModel(GetMesh());
 }
 
 void ATGCharacterPlayer::SetupPlayerModel(USkeletalMeshComponent* TargetMesh)
 {
+
+    if (!MyGameInstance.IsValid())
+    {
+        UE_LOG(LogTemp, Error, TEXT("MyGameInstance is null."));
+        return;
+    }
+
     UClass* AnimClass = TargetMesh->GetAnimClass();
     USkeleton* Skeleton = TargetMesh->GetSkeletalMeshAsset()->GetSkeleton();
     USkeletalMesh* MergedMesh = UTGModuleSystem::GetMergeCharacterParts(MyGameInstance->ModuleBodyPartIndex, MyGameInstance->ModuleDataAsset);
@@ -74,12 +108,29 @@ void ATGCharacterPlayer::SetupPlayerModel(USkeletalMeshComponent* TargetMesh)
     TargetMesh->SetSkeletalMesh(MergedMesh);
     TargetMesh->SetAnimInstanceClass(AnimClass);
 
+    if(!MyGameInstance->AttachedActorsMap.IsEmpty()){
     for (const auto& Elem : MyGameInstance->AttachedActorsMap)
     {
+        if (Elem.Key.IsNone() || Elem.Value.ActorID.IsNone())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Invalid BoneID or WeaponID."));
+            continue;
+        }
+
         FName BoneID = Elem.Key;
         FName WeaponID = Elem.Value.ActorID;
 
-        UBlueprintGeneratedClass* WeaponClass = *MyGameInstance->WeaponDataAsset->BaseWeaponClasses.Find(WeaponID);
+        // Debugging log
+        UE_LOG(LogTemp, Log, TEXT("Attempting to find WeaponClass for WeaponID: %s"), *WeaponID.ToString());
+
+        UBlueprintGeneratedClass** WeaponClassPtr = MyGameInstance->WeaponDataAsset->BaseWeaponClasses.Find(WeaponID);
+        if (!WeaponClassPtr)
+        {
+            UE_LOG(LogTemp, Error, TEXT("WeaponClass not found for WeaponID: %s"), *WeaponID.ToString());
+            continue;
+        }
+
+        UBlueprintGeneratedClass* WeaponClass = *WeaponClassPtr;
         AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(WeaponClass, FVector::ZeroVector, FRotator::ZeroRotator);
         if (ClonedActor)
         {
@@ -103,6 +154,8 @@ void ATGCharacterPlayer::SetupPlayerModel(USkeletalMeshComponent* TargetMesh)
             UE_LOG(LogTemp, Error, TEXT("Failed to spawn weapon actor."));
         }
     }
+    }
+    
 }
 
 void ATGCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -111,13 +164,13 @@ void ATGCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
     UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent);
 
-    EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
-    EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
-    EnhancedInputComponent->BindAction(WalkAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Walk);
-    EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Look);
-    EnhancedInputComponent->BindAction(FlyAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::Fly);
+   // EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
+   // EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+   // EnhancedInputComponent->BindAction(WalkAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Walk);
+   // EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Look);
     EnhancedInputComponent->BindAction(SwitchSceneAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::SwitchScene);
-    EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Attack);
+    EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ATGCharacterPlayer::AttackStart);
+    EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::AttackEnd);
     EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Started, this, &ATGCharacterPlayer::AimCameraStart);
     EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::AimCameraEnd);
 }
@@ -127,7 +180,17 @@ void ATGCharacterPlayer::SwitchScene()
     MyGameInstance->ChangeLevel(FName(TEXT("Customizing")));
 }
 
-void ATGCharacterPlayer::Attack()
+void ATGCharacterPlayer::AttackStart()
+{
+    AttackCall(true);
+}
+
+void ATGCharacterPlayer::AttackEnd()
+{
+    AttackCall(false);
+}
+
+void ATGCharacterPlayer::AttackCall(bool isFiring)
 {
     for (const auto& Elem : WeaponMap)
     {
@@ -136,7 +199,7 @@ void ATGCharacterPlayer::Attack()
             if (WeaponActor->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()))
             {
                 UE_LOG(LogTemp, Log, TEXT("Calling FireWeapon on %s"), *WeaponActor->GetName());
-                ITGWeaponInterface::Execute_FunctionFireWeapon(WeaponActor, true, true, FollowCamera);
+                ITGWeaponInterface::Execute_FunctionFireWeapon(WeaponActor, isFiring, bIsAiming, true, FollowCamera);
                 UE_LOG(LogTemp, Log, TEXT("Weapon fired successfully."));
             }
             else
@@ -151,6 +214,7 @@ void ATGCharacterPlayer::Attack()
     }
 }
 
+
 void ATGCharacterPlayer::Walk(const FInputActionValue& Value)
 {
     FVector2D MovementVector = Value.Get<FVector2D>();
@@ -159,66 +223,25 @@ void ATGCharacterPlayer::Walk(const FInputActionValue& Value)
 
     const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
     const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-  
-    if(bIsAiming)
-    {
-        float AimingSpeedMultiplier = 600.0f;
-        FVector NewLocation = GetActorLocation() + (ForwardDirection * MovementVector.X + RightDirection * MovementVector.Y) * AimingSpeedMultiplier * GetWorld()->GetDeltaSeconds();
-        SetActorLocation(NewLocation);
-    } else
-    {
-        AddMovementInput(ForwardDirection, MovementVector.X);
-        AddMovementInput(RightDirection, MovementVector.Y);
-    }
-    
 }
 
 void ATGCharacterPlayer::Look(const FInputActionValue& Value)
 {
-    if(bIsAiming)
-    {
-        AimLook(Value);
-        SetWeaponRotations();
-    }
-    
     FVector2D LookAxisVector = Value.Get<FVector2D>();
     AddControllerYawInput(LookAxisVector.X);
     AddControllerPitchInput(-LookAxisVector.Y);
-    
-}
-
-void ATGCharacterPlayer::AimLook(const FInputActionValue& Value)
-{
-    const FRotator Rotation = Controller->GetControlRotation();
-    const FRotator YawRotation(0, Rotation.Yaw, 0);
-    SetActorRotation(YawRotation);
 }
 
 
 
 void ATGCharacterPlayer::AimCameraStart()
 {
-    if (!bIsAiming)
-    {
-        CameraBoom->TargetArmLength = 100.0f;
-        FollowCamera->SetRelativeLocation(OriginalCameraOffset + CameraOffsetWhenAiming);
-        UE_LOG(LogTemp, Log, TEXT("Camera aimed"));
-        SetWeaponRotations();
-        bIsAiming = true;
-    }
+    bIsAiming = true;
 }
 
 void ATGCharacterPlayer::AimCameraEnd()
 {
-    if (bIsAiming)
-    {
-        CameraBoom->TargetArmLength = 400.0f;
-        FollowCamera->SetRelativeLocation(OriginalCameraOffset);
-        UE_LOG(LogTemp, Log, TEXT("Camera reset"));
-        ResetWeaponRotations();
-        bIsAiming = false;
-    }
+   bIsAiming = false;
 }
 
 void ATGCharacterPlayer::SetWeaponRotations()
@@ -231,6 +254,7 @@ void ATGCharacterPlayer::SetWeaponRotations()
             {
                 USpringArmComponent* WeaponSpringArm = CastChecked<USpringArmComponent>(CastedWeapon->MySpringArmComponent);
                 FQuat TargetRotation = CastedWeapon->GetAimingRotation(GetScreenAimingPointVector());
+                //fquatnet 정보량 줄여줌
                 CastedWeapon->SetActorRotation(TargetRotation);
             }
         }
@@ -256,9 +280,27 @@ void ATGCharacterPlayer::ResetWeaponRotations()
 
 
 
-void ATGCharacterPlayer::Fly(const FInputActionValue& Value)
+void ATGCharacterPlayer::Tick(float DeltaSeconds)
 {
- 
+    Super::Tick(DeltaSeconds);
+    FVector CurrentOffset = FollowCamera->GetRelativeLocation();
+    FVector DesiredOffset = bIsAiming ? TargetCameraOffset : OriginalCameraOffset;
+
+    if (!CurrentOffset.Equals(DesiredOffset, 1.0f)) 
+    {
+        FVector NewOffset = FMath::VInterpTo(CurrentOffset, DesiredOffset, DeltaSeconds, InterpSpeed);
+        FollowCamera->SetRelativeLocation(NewOffset);
+    }
+    if(bIsAiming)
+    {
+        const FRotator Rotation = Controller->GetControlRotation();
+        const FRotator YawRotation(0, Rotation.Yaw, 0);
+        SetActorRotation(YawRotation);
+        SetWeaponRotations();
+    } else
+    {
+        ResetWeaponRotations();
+    }
 }
 
 void ATGCharacterPlayer::ChangeCharacterControl()
@@ -336,8 +378,12 @@ void ATGCharacterPlayer::SetCharacterControlData(const UTGPlayerControlData* Cha
 
 void ATGCharacterPlayer::Die()
 {
-    Super::Die();
-    
+
+    GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
+    GetMesh()->SetAllBodiesSimulatePhysics(true);
+    GetMesh()->SetSimulatePhysics(true);
+    GetMesh()->WakeAllRigidBodies();
+    UE_LOG(LogTemp, Warning, TEXT("Dead Ragdoll"));
 }
 
 void ATGCharacterPlayer::FlyingMove(const FInputActionValue& Value)

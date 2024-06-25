@@ -4,23 +4,32 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Interface/TGCharacterWidgetInterface.h"
 #include "TGCharacterBase.generated.h"
 
 
 UCLASS()
-class TOPGUN_API ATGCharacterBase : public ACharacter
+class TOPGUN_API ATGCharacterBase : public ACharacter, public ITGCharacterWidgetInterface
 {
 	GENERATED_BODY()
 
 public:
 	ATGCharacterBase();
 	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
-
+	virtual void PostInitializeComponents() override;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Stat, Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UTGCharacterStatComponent> Stat;
 
 protected:
 	virtual void SetCharacterControlData(const class UTGPlayerControlData* CharacterControlData);
-	int Health;
 	float KnockBackAmount;
 	UFUNCTION()
 	virtual void Die();
+
+
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Widget, Meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UWidgetComponent> HpBar;
+
+	virtual void SetupCharacterWidget(class UTGUserWidget* InUserWidget) override;
 };
