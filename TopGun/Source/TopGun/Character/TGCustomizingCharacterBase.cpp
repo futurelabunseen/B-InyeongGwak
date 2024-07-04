@@ -114,7 +114,7 @@ void ATGCustomizingCharacterBase::ResetGameCustomization()
 
 void ATGCustomizingCharacterBase::SetupWeapons(USkeletalMeshComponent* TargetMesh) const
 {
-    if (!MyGameInstance || !MyGameInstance->WeaponDataAsset)
+    if (!MyGameInstance.IsValid() || !MyGameInstance->WeaponDataAsset)
     {
         UE_LOG(LogTemp, Error, TEXT("GameInstance or WeaponDataAsset is invalid"));
         return;
