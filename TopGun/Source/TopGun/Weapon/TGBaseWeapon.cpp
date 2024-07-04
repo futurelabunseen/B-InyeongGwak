@@ -10,7 +10,7 @@
 ATGBaseWeapon::ATGBaseWeapon()
 {
     PrimaryActorTick.bCanEverTick = true;
-    AttackDamage = 20.0f;
+    AttackDamage = 0;
 }
 
 FVector ATGBaseWeapon::GetArrowForwardVector() const
@@ -128,20 +128,21 @@ void ATGBaseWeapon::SetDefaultRotation()
 {
     if (UTGCGameInstance* GameInstance = Cast<UTGCGameInstance>(GetGameInstance()))
     {
-        if (const FAttachedActorData* FoundActorData = GameInstance->AttachedActorsMap.Find(BoneID))
+        FAttachedActorData FoundActorData;
+        if (GameInstance->GetWeaponActorData(BoneID, FoundActorData))
         {
-            DefaultRotationQuat = FQuat(FoundActorData->Rotation);
+            DefaultRotationQuat = FQuat(FoundActorData.Rotation);
         }
         else
         {
             DefaultRotationQuat = GetActorQuat();
-            UE_LOG(LogTemp, Log, TEXT("WeaponBase : Couldn't find with key "));
+            UE_LOG(LogTemp, Log, TEXT("WeaponBase: Couldn't find data for BoneID: %s"), *BoneID.ToString());
         }
     }
     else
     {
         DefaultRotationQuat = GetActorQuat();
-        UE_LOG(LogTemp, Log, TEXT("WeaponBase : Didn't get default rotation"));
+        UE_LOG(LogTemp, Log, TEXT("WeaponBase: Failed to get game instance"));
     }
 }
 

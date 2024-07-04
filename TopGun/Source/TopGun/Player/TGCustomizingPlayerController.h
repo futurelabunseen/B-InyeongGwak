@@ -49,7 +49,7 @@ private:
 
     // Weapon Attach
     void UpdateWeaponActorPosition();
-    void RemoveWeaponInDesiredPosition();
+    void RemoveActorInDesiredPosition();
     void CheckSnappedCancellation();
     AActor* FindTargetActorUnderMouse() const;
     void TryFindRotatingTargetActor();
@@ -65,19 +65,23 @@ private:
     void OnRotateAction(const FInputActionValue& Value);
     void OnRotateCharacter(const FInputActionValue& Value);
     void AdjustCameraOffset(const FVector2D& MouseDelta);
+
+    UFUNCTION(BlueprintCallable)
     void OnEnterAction();
-    void OnRotateWeaponActor();
+    void OnRotateActor();
 
 public:
     // UI
-    UFUNCTION(BlueprintCallable)
-    void AddButtonToPanel(class UScrollBox* TargetPanel, TSubclassOf<class UUserWidget> TargetButtonWidget, FName ID);
     UFUNCTION(BlueprintCallable)
     void AddWeaponButtonToPanel(class UScrollBox* TargetPanel);
     UFUNCTION(BlueprintCallable)
     void AddModuleButtonToPanel(class UScrollBox* TargetPanel);
     UFUNCTION(BlueprintCallable)
+    void AddArmourButtonToPanel(UScrollBox* TargetPanel);
+    UFUNCTION(BlueprintCallable)
     void OnWeaponSelected(FName WeaponID);
+    UFUNCTION(BlueprintCallable)
+    void OnArmourSelected(FName WeaponID);
     UFUNCTION(BlueprintCallable)
     void OnModuleSelected(FName WeaponID);
 

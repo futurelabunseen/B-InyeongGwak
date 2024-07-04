@@ -1,15 +1,19 @@
 #include "Character/TGCharacterPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "InputMappingContext.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "TGPlayerControlData.h"
 #include "Components/CapsuleComponent.h"
 #include "GameInstance/TGGameInstance.h"
+#include "Interface/TGArmourInterface.h"
 #include "Utility/TGWeaponDataAsset.h"
 #include "Interface/TGWeaponInterface.h"
+#include "UI/TGGameOverWidget.h"
+#include "UI/TGWaveBarWidget.h"
+#include "Utility/TGArmoursDataAsset.h"
 #include "Utility/TGCharacterStatComponent.h"
+#include "Utility/TGFlyingComponent.h"
 
 
 ATGCharacterPlayer::ATGCharacterPlayer()
@@ -28,42 +32,21 @@ ATGCharacterPlayer::ATGCharacterPlayer()
 
     GetCapsuleComponent()->SetCollisionProfileName(TEXT("CPROFILE_TGCAPSULE"));
     GetMesh()->SetCollisionProfileName(TEXT("NoCollision"));
+
+    FlyingComponent = CreateDefaultSubobject<UTGFlyingComponent>(TEXT("FlyingComponent"));
     
-    CurrentCharacterControlType = ECharacterControlType::Walking;
-    Stat->SetHp(300);
     KnockBackAmount = 20;
+
+    bIsTransitioning = false;
+
 }
 
-ATGCharacterPlayer::~ATGCharacterPlayer()
-{// Log the destruction for debugging purposes
-    UE_LOG(LogTemp, Warning, TEXT("Destructor for ATGCharacterPlayer called."));
-
-    // Ensure the game instance is properly cleaned up
-    MyGameInstance.Reset();
-
-    // Clean up any dynamically allocated resources or registered events here
-    for (auto& Elem : WeaponMap)
-    {
-        if (AActor* WeaponActor = Elem.Value)
-        {
-            WeaponActor->Destroy();
-        }
-    }
-
-    WeaponMap.Empty();
-
-    // If any other components or resources need explicit cleanup, do it here
-    // Example:
-    // if (SomeComponent)
-    // {
-    //     SomeComponent->DestroyComponent();
-    //     SomeComponent = nullptr;
-    // }
-}
 
 void ATGCharacterPlayer::BeginPlay()
 {
     Super::BeginPlay();
+    SetCharacterControl();
+    
     MyGameInstance = Cast<UTGCGameInstance>(GetGameInstance());
     if (!MyGameInstance.IsValid())
     {
@@ -71,24 +54,51 @@ void ATGCharacterPlayer::BeginPlay()
         FGenericPlatformMisc::RequestExit(false);
         return;
     }
-/*
-    for (const FString& socketName : socketNames)
+    int32 TotalDefense = 0;
+    MyGameInstance->CalculateArmourStats(TotalDefense);
+    UE_LOG(LogTemp, Error, TEXT("ATGCharacterPlayer::BeginPlay HP : %d"), TotalDefense);
+
+    Stat->SetMaxHp(TotalDefense);
+
+    MyGameMode = Cast<ATGGameMode>(GetWorld()->GetAuthGameMode());
+    if (!MyGameMode.IsValid())
     {
-        ATGBaseWeapon* placeholder = GetWorld()->SpawnActor<ATGBaseWeapon>(ATGBaseWeapon::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
-        if (placeholder)
-        {
-            placeholder->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName(*socketName));
-        }
+        UE_LOG(LogTemp, Error, TEXT("Failed to cast GameInstance to UTGCGameInstance."));
+        FGenericPlatformMisc::RequestExit(false);
+        return;
     }
-*/
+
+    
     OriginalCameraOffset =  OriginalCameraOffset = FollowCamera->GetRelativeLocation();
     TargetCameraOffset = OriginalCameraOffset + FVector(0.0f, 0.0f, 100.0f);
     SetupPlayerModel(GetMesh());
+
+   // HpBar->SetVisibility(false);
+}
+
+void ATGCharacterPlayer::SetCharacterControl() const
+{
+    APlayerController* PlayerController = CastChecked<APlayerController>(GetController());
+    if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+    {
+        Subsystem->ClearAllMappings();
+        UInputMappingContext* NewMappingContext = DefaultMappingContext;
+        if (NewMappingContext)
+        {
+            Subsystem->AddMappingContext(NewMappingContext, 0);
+        }
+    }
 }
 
 void ATGCharacterPlayer::SetupPlayerModel(USkeletalMeshComponent* TargetMesh)
 {
+    SetupMesh(TargetMesh);
+    AttachWeapons(TargetMesh);
+    AttachArmors(TargetMesh);
+}
 
+void ATGCharacterPlayer::SetupMesh(USkeletalMeshComponent* TargetMesh)
+{
     if (!MyGameInstance.IsValid())
     {
         UE_LOG(LogTemp, Error, TEXT("MyGameInstance is null."));
@@ -106,58 +116,101 @@ void ATGCharacterPlayer::SetupPlayerModel(USkeletalMeshComponent* TargetMesh)
     MergedMesh->USkeletalMesh::SetSkeleton(Skeleton);
     TargetMesh->SetSkeletalMesh(MergedMesh);
     TargetMesh->SetAnimInstanceClass(AnimClass);
+}
 
-    if(!MyGameInstance->AttachedActorsMap.IsEmpty()){
-    for (const auto& Elem : MyGameInstance->AttachedActorsMap)
+
+void ATGCharacterPlayer::AttachIndividualActor(USkeletalMeshComponent* TargetMesh, FName BoneID, FName ActorID, UBlueprintGeneratedClass* ActorClass, const FRotator& Rotation, TMap<FName, AActor*>& ActorMap)
+{
+    AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(ActorClass, FVector::ZeroVector, FRotator::ZeroRotator);
+    if (ClonedActor)
     {
-        if (Elem.Key.IsNone() || Elem.Value.ActorID.IsNone())
+        USpringArmComponent* ActorSpringArm = NewObject<USpringArmComponent>(this, USpringArmComponent::StaticClass());
+        ActorSpringArm->SetupAttachment(TargetMesh, BoneID);
+        ActorSpringArm->TargetArmLength = 0.5f;
+        ActorSpringArm->bUsePawnControlRotation = false;
+        ActorSpringArm->RegisterComponent();
+
+        ClonedActor->AttachToComponent(ActorSpringArm, FAttachmentTransformRules::SnapToTargetIncludingScale);
+        ClonedActor->SetActorRotation(Rotation);
+        ClonedActor->SetActorEnableCollision(false);
+
+        if (ITGWeaponInterface* WeaponInterface = Cast<ITGWeaponInterface>(ClonedActor))
         {
-            UE_LOG(LogTemp, Warning, TEXT("Invalid BoneID or WeaponID."));
-            continue;
+            WeaponInterface->InitializeWeapon(BoneID, ActorID);
+            WeaponInterface->SetSpringArmComponent(ActorSpringArm);
+        }
+        else if (ITGArmourInterface* ArmourInterface = Cast<ITGArmourInterface>(ClonedActor))
+        {
+            ArmourInterface->InitializeArmour(BoneID, ActorID);
+            ArmourInterface->SetSpringArmComponent(ActorSpringArm);
         }
 
-        FName BoneID = Elem.Key;
-        FName WeaponID = Elem.Value.ActorID;
+        ActorMap.Add(BoneID, ClonedActor);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to spawn actor for ID: %s"), *ActorID.ToString());
+    }
+}
 
-        // Debugging log
-        UE_LOG(LogTemp, Log, TEXT("Attempting to find WeaponClass for WeaponID: %s"), *WeaponID.ToString());
-
-        UBlueprintGeneratedClass** WeaponClassPtr = MyGameInstance->WeaponDataAsset->BaseWeaponClasses.Find(WeaponID);
-        if (!WeaponClassPtr)
+void ATGCharacterPlayer::AttachWeapons(USkeletalMeshComponent* TargetMesh)
+{
+ 
+        for (const auto& Elem : MyGameInstance->GetEntireWeaponActorMap())
         {
-            UE_LOG(LogTemp, Error, TEXT("WeaponClass not found for WeaponID: %s"), *WeaponID.ToString());
-            continue;
-        }
-
-        UBlueprintGeneratedClass* WeaponClass = *WeaponClassPtr;
-        AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(WeaponClass, FVector::ZeroVector, FRotator::ZeroRotator);
-        if (ClonedActor)
-        {
-            USpringArmComponent* WeaponSpringArm = NewObject<USpringArmComponent>(this, USpringArmComponent::StaticClass());
-            WeaponSpringArm->SetupAttachment(TargetMesh, BoneID);
-            WeaponSpringArm->TargetArmLength = 0.5f;
-            WeaponSpringArm->bUsePawnControlRotation = false;
-            WeaponSpringArm->RegisterComponent();
-
-            ClonedActor->AttachToComponent(WeaponSpringArm, FAttachmentTransformRules::SnapToTargetIncludingScale);
-            ClonedActor->SetActorRotation(Elem.Value.Rotation);
-            ClonedActor->SetActorEnableCollision(false);
-
-            if(ITGWeaponInterface* WeaponInterface = Cast<ITGWeaponInterface>(ClonedActor))
+            if (Elem.Key.IsNone() || Elem.Value.ActorID.IsNone())
             {
-                WeaponInterface->InitializeWeapon(BoneID, WeaponID);
-                WeaponInterface->SetSpringArmComponent(WeaponSpringArm);
+                UE_LOG(LogTemp, Warning, TEXT("Invalid BoneID or WeaponID."));
+                continue;
             }
-            WeaponMap.Add(BoneID, ClonedActor);
+
+            FName BoneID = Elem.Key;
+            FName WeaponID = Elem.Value.ActorID;
+
+            // Debugging log
+            UE_LOG(LogTemp, Log, TEXT("Attempting to find WeaponClass for WeaponID: %s"), *WeaponID.ToString());
+
+            UBlueprintGeneratedClass** WeaponClassPtr = MyGameInstance->WeaponDataAsset->BaseWeaponClasses.Find(WeaponID);
+            if (!WeaponClassPtr)
+            {
+                UE_LOG(LogTemp, Error, TEXT("WeaponClass not found for WeaponID: %s"), *WeaponID.ToString());
+                continue;
+            }
+
+            AttachIndividualActor(TargetMesh, BoneID, WeaponID, *WeaponClassPtr, Elem.Value.Rotation, WeaponMap);
         }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("Failed to spawn weapon actor."));
-        }
-    }
-    }
     
 }
+
+void ATGCharacterPlayer::AttachArmors(USkeletalMeshComponent* TargetMesh)
+{
+
+        for (const auto& Elem : MyGameInstance->GetEntireArmourActorMap())
+        {
+            if (Elem.Key.IsNone() || Elem.Value.ActorID.IsNone())
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Invalid BoneID or ArmourID."));
+                continue;
+            }
+
+            FName BoneID = Elem.Key;
+            FName ArmourID = Elem.Value.ActorID;
+
+            UE_LOG(LogTemp, Log, TEXT("Attempting to find ArmourClass for ArmourID: %s"), *ArmourID.ToString());
+
+            UBlueprintGeneratedClass** ArmourClassPtr = MyGameInstance->ArmourDataAsset->BaseArmourClass.Find(ArmourID);
+            if (!ArmourClassPtr)
+            {
+                UE_LOG(LogTemp, Error, TEXT("ArmourClass not found for ArmourID: %s"), *ArmourID.ToString());
+                continue;
+            }
+
+            AttachIndividualActor(TargetMesh, BoneID, ArmourID, *ArmourClassPtr, Elem.Value.Rotation, ArmourMap);
+        }
+    
+}
+
+
 
 void ATGCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -165,30 +218,135 @@ void ATGCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
     UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent);
 
-   // EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
-   // EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
-   // EnhancedInputComponent->BindAction(WalkAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Walk);
-   // EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Look);
+    EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ACharacter::Jump);
+    EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+    EnhancedInputComponent->BindAction(WalkAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Move);
+    EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Look);
     EnhancedInputComponent->BindAction(SwitchSceneAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::SwitchScene);
     EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ATGCharacterPlayer::AttackStart);
     EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::AttackEnd);
     EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Started, this, &ATGCharacterPlayer::AimCameraStart);
     EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::AimCameraEnd);
+    EnhancedInputComponent->BindAction(BoostAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Boost);
+}
+
+void ATGCharacterPlayer::Move(const FInputActionValue& Value)
+{
+    if (FlyingComponent)
+    {
+        FlyingComponent->Move(Value);
+    }
+}
+
+void ATGCharacterPlayer::Look(const FInputActionValue& Value)
+{
+    if (FlyingComponent)
+    {
+        FlyingComponent->Look(Value);
+    }
+}
+
+void ATGCharacterPlayer::Jump()
+{
+    if (FlyingComponent)
+    {
+        FlyingComponent->Jump();
+    }
+}
+
+void ATGCharacterPlayer::Boost(const FInputActionValue& Value)
+{
+    if (FlyingComponent)
+    {
+        FlyingComponent->Boost(Value);
+    }
 }
 
 void ATGCharacterPlayer::SwitchScene()
 {
-    MyGameInstance->ChangeLevel(FName(TEXT("Customizing")));
+    if (bIsTransitioning)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Level transition already in progress. Ignoring SwitchScene call."));
+        return;
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Starting level transition in SwitchScene."));
+    bIsTransitioning = true;
+    PrepareForLevelTransition();
+    GetWorldTimerManager().ClearAllTimersForObject(this);
+    UE_LOG(LogTemp, Log, TEXT("Cleared all timers for character in SwitchScene."));
+    if (MyGameInstance.IsValid())
+    {
+        UE_LOG(LogTemp, Log, TEXT("Changing level to 'Customizing' in SwitchScene."));
+        MyGameInstance->ChangeLevel(FName(TEXT("Customizing")));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to get TGCGameInstance in SwitchScene"));
+        bIsTransitioning = false;
+    }
+}
+
+
+
+void ATGCharacterPlayer::PrepareForLevelTransition()
+{
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        PC->DisableInput(PC);
+    }
+
+    AttackEnd();
+    SetActorEnableCollision(false);
+    SetActorHiddenInGame(true);
+    GetWorldTimerManager().ClearAllTimersForObject(this);
+    bIsAiming = false;
+    isDead = false;
+
+    for (auto& Elem : WeaponMap)
+    {
+        if (Elem.Value)
+        {
+            Elem.Value->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+        }
+    }
+    for (auto& Elem : ArmourMap)
+    {
+        if (Elem.Value)
+        {
+            Elem.Value->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+        }
+    }
+
+    if (CameraBoom)
+    {
+        CameraBoom->TargetArmLength = 0;
+        CameraBoom->SetRelativeLocation(FVector::ZeroVector);
+    }
+    if (FollowCamera)
+    {
+        FollowCamera->SetRelativeLocation(FVector::ZeroVector);
+    }
+
+    WeaponMap.Empty();
+    ArmourMap.Empty();
+    SocketActors.Empty();
 }
 
 void ATGCharacterPlayer::AttackStart()
 {
-    AttackCall(true);
+    if(!isDead)
+    {
+        AttackCall(true);
+    }
 }
 
 void ATGCharacterPlayer::AttackEnd()
 {
-    AttackCall(false);
+    if(!isDead)
+    {
+        AttackCall(false);
+    }
 }
 
 void ATGCharacterPlayer::AttackCall(bool isFiring)
@@ -215,23 +373,6 @@ void ATGCharacterPlayer::AttackCall(bool isFiring)
     }
 }
 
-
-void ATGCharacterPlayer::Walk(const FInputActionValue& Value)
-{
-    FVector2D MovementVector = Value.Get<FVector2D>();
-    const FRotator Rotation = Controller->GetControlRotation();
-    const FRotator YawRotation(0, Rotation.Yaw, 0);
-
-    const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-    const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-}
-
-void ATGCharacterPlayer::Look(const FInputActionValue& Value)
-{
-    FVector2D LookAxisVector = Value.Get<FVector2D>();
-    AddControllerYawInput(LookAxisVector.X);
-    AddControllerPitchInput(-LookAxisVector.Y);
-}
 
 
 
@@ -307,22 +448,6 @@ void ATGCharacterPlayer::Tick(float DeltaSeconds)
     }
 }
 
-void ATGCharacterPlayer::ChangeCharacterControl()
-{
-    if (CurrentCharacterControlType == ECharacterControlType::Flying)
-    {
-        SetCharacterControl(ECharacterControlType::Walking);
-        APlayerController* PC = Cast<APlayerController>(GetController());
-        PC->bShowMouseCursor = false;
-    }
-    else if (CurrentCharacterControlType == ECharacterControlType::Walking)
-    {
-        SetCharacterControl(ECharacterControlType::Flying);
-        APlayerController* PC = Cast<APlayerController>(GetController());
-        PC->bShowMouseCursor = true;
-    }
-}
-
 
 
 FVector ATGCharacterPlayer::GetScreenAimingPointVector() const
@@ -347,33 +472,11 @@ FVector ATGCharacterPlayer::GetScreenAimingPointVector() const
     if (FollowCamera)
     {
         FVector CameraLocation = FollowCamera->GetComponentLocation();
-      //  DrawDebugLine(GetWorld(), CameraLocation, TargetPoint, FColor::Green, false, 5.0f, 0, 1.0f);
     }
 
     return TargetPoint;
 }
 
-
-void ATGCharacterPlayer::SetCharacterControl(ECharacterControlType NewCharacterControlType)
-{
-    UTGPlayerControlData* NewCharacterControl = CharacterControlManager[NewCharacterControlType];
-    check(NewCharacterControl);
-
-    SetCharacterControlData(NewCharacterControl);
-
-    APlayerController* PlayerController = CastChecked<APlayerController>(GetController());
-    if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-    {
-        Subsystem->ClearAllMappings();
-        UInputMappingContext* NewMappingContext = NewCharacterControl->InputMappingContext;
-        if (NewMappingContext)
-        {
-            Subsystem->AddMappingContext(NewMappingContext, 0);
-        }
-    }
-
-    CurrentCharacterControlType = NewCharacterControlType;
-}
 
 void ATGCharacterPlayer::SetCharacterControlData(const UTGPlayerControlData* CharacterControlData)
 {
@@ -382,35 +485,50 @@ void ATGCharacterPlayer::SetCharacterControlData(const UTGPlayerControlData* Cha
 
 void ATGCharacterPlayer::Die()
 {
-
-    GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
-    GetMesh()->SetAllBodiesSimulatePhysics(true);
-    GetMesh()->SetSimulatePhysics(true);
-    GetMesh()->WakeAllRigidBodies();
-    UE_LOG(LogTemp, Warning, TEXT("Dead Ragdoll"));
+    Super::Die();
+    GetMesh()->SetHiddenInGame(true);
+    CameraBoom->bDoCollisionTest = false;
+    APlayerController* PC = Cast<APlayerController>(GetController());
+    if(PC)
+    {
+        PC->bShowMouseCursor = false;
+        isDead = true;
+    }
+    PrepareForLevelTransition();
 }
 
-void ATGCharacterPlayer::FlyingMove(const FInputActionValue& Value)
+float ATGCharacterPlayer::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator,
+    AActor* DamageCauser)
 {
-    FVector2D MovementVector = Value.Get<FVector2D>();
-
-    const FRotator Rotation = Controller->GetControlRotation();
-    const FRotator YawRotation(0, Rotation.Yaw, 0);
-
-    const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-    const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-    AddMovementInput(ForwardDirection, MovementVector.X);
-    AddMovementInput(RightDirection, MovementVector.Y);
+        return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 }
 
-void ATGCharacterPlayer::FlyingLook(const FInputActionValue& Value)
+void ATGCharacterPlayer::SetupCharacterWidget(UTGUserWidget* InUserWidget)
 {
-    FVector2D LookAxisVector = Value.Get<FVector2D>();
+    Super::SetupCharacterWidget(InUserWidget);
 
-    AddControllerYawInput(LookAxisVector.X);
-    AddControllerPitchInput(LookAxisVector.Y);
+    UTGWaveBarWidget* WaveWidget = Cast<UTGWaveBarWidget>(InUserWidget);
+    if (WaveWidget)
+    {
+        MyGameMode->OnWaveChanged.AddUObject(WaveWidget, &UTGWaveBarWidget::UpdateWaveBar);
+    }
 }
+
+void ATGCharacterPlayer::ResetInvincibility()
+{
+    bIsInvincible = false;
+}
+
+
+void ATGCharacterPlayer::SetUpGameOverWidget(UTGUserWidget* InUserWidget)
+{
+    UTGGameOverWidget* GameOverWidget = Cast<UTGGameOverWidget>(InUserWidget);
+    if (GameOverWidget)
+    {
+        Stat->OnZeroScore.AddUObject(GameOverWidget, &UTGGameOverWidget::UpdateScore);
+    }
+}
+
 
 void ATGCharacterPlayer::NotifyActorBeginOverlap(AActor* OtherActor)
 {

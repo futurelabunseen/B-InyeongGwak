@@ -3,9 +3,12 @@
 
 #include "Utility/TGCharacterStatComponent.h"
 
+#include "GameInstance/TGGameInstance.h"
+#include "Kismet/GameplayStatics.h"
+
 UTGCharacterStatComponent::UTGCharacterStatComponent()
 {
-	MaxHp = 200.0f;
+	MaxHp = 0.0f;
 	CurrentHp = MaxHp;
 }
 
@@ -14,9 +17,6 @@ UTGCharacterStatComponent::UTGCharacterStatComponent()
 void UTGCharacterStatComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	SetHp(MaxHp);	
-	
 }
 
 float UTGCharacterStatComponent::ApplyDamage(float InDamage)
@@ -28,6 +28,14 @@ float UTGCharacterStatComponent::ApplyDamage(float InDamage)
 	if (CurrentHp <= KINDA_SMALL_NUMBER)
 	{
 		OnHpZero.Broadcast();
+
+		TWeakObjectPtr<UTGCGameInstance> MyGameInstance = Cast<UTGCGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+
+		if (MyGameInstance.IsValid())
+		{
+			OnZeroScore.Broadcast(MyGameInstance->PlayerScore);
+			MyGameInstance->PlayerScore = 0;
+		}
 	}
 
 	return ActualDamage;
@@ -36,7 +44,13 @@ float UTGCharacterStatComponent::ApplyDamage(float InDamage)
 void UTGCharacterStatComponent::SetHp(float NewHp)
 {
 	CurrentHp = FMath::Clamp<float>(NewHp, 0.0f, MaxHp);
-	
+	OnHpChanged.Broadcast(CurrentHp);
+}
+
+void UTGCharacterStatComponent::SetMaxHp(float NewHp)
+{
+	MaxHp = NewHp;
+	CurrentHp = MaxHp;
 	OnHpChanged.Broadcast(CurrentHp);
 }
 

@@ -13,6 +13,9 @@ class TOPGUN_API ATGBaseWeapon : public AActor, public ITGWeaponInterface
 
 public:
 	// Sets default values for this actor's properties
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
+	int32 Attack;
+	
 	ATGBaseWeapon();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")

@@ -8,6 +8,7 @@
 #include "Utility/TGWeaponDataAsset.h"
 #include "GameFramework/Actor.h"
 #include "GameInstance/TGGameInstance.h"
+#include "Interface/TGArmourInterface.h"
 #include "Interface/TGWeaponInterface.h"
 
 
@@ -30,6 +31,8 @@ void UTGCustomizingComponent::BeginPlay()
 	
 	WeaponDataAsset = TWeakObjectPtr<UTGWeaponDataAsset>(MyGameInstance->WeaponDataAsset);
 	ModuleDataAsset = TWeakObjectPtr<UTGModuleDataAsset>(MyGameInstance->ModuleDataAsset);
+	ArmourDataAsset = TWeakObjectPtr<UTGArmoursDataAsset>(MyGameInstance->ArmourDataAsset);
+	
 	AActor* Owner = GetOwner();
 	if (Owner)
 	{
@@ -68,57 +71,48 @@ UBlueprintGeneratedClass* UTGCustomizingComponent::GetWeaponClassById(FName Weap
 	return FoundWeaponClass ? *FoundWeaponClass : nullptr;
 }
 
-void UTGCustomizingComponent::AddButtonToPanel(UScrollBox* TargetPanel, TSubclassOf<UUserWidget> TargetButtonWidget, const FName ID) const
+UBlueprintGeneratedClass* UTGCustomizingComponent::GetArmourClassById(FName ArmourID,
+	UTGArmoursDataAsset* ArmourDataAsset)
 {
-	if (!GetOwner() || !TargetPanel || !TargetButtonWidget) return;
-	
-	UWorld* World = GetOwner()->GetWorld();
-	UUserWidget* CreatedWidget = CreateWidget<UUserWidget>(World, TargetButtonWidget);
-	if (!CreatedWidget)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Created widget null"));
-		return;
-	}
-	if (UTGInventoryWeaponButton* InventoryButton = Cast<UTGInventoryWeaponButton>(CreatedWidget))
-	{
-		InventoryButton->SetupButton(ID);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Failed to cast the created widget to TGInventoryWeaponButton."));
-		return;
-	}
-	TargetPanel->AddChild(CreatedWidget);
+	if (!ArmourDataAsset) return nullptr;
+	UBlueprintGeneratedClass** FoundArmourClass = ArmourDataAsset->BaseArmourClass.Find(ArmourID);
+	return FoundArmourClass ? *FoundArmourClass : nullptr;
 }
 
-void UTGCustomizingComponent::AddWeaponButtonToPanel(UScrollBox* TargetPanel) const
+
+void UTGCustomizingComponent::GenerateWeaponButtons(UScrollBox* TargetPanel) const
 {
-	if (!TargetPanel)
+	if (!TargetPanel || !WeaponButtonWidgetClass)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AddWeaponButtonToPanel: TargetPanel is null."));
+		UE_LOG(LogTemp, Warning, TEXT("Invalid parameters. Module"));
 		return;
 	}
-
-	if (!WeaponButtonWidgetClass)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("AddWeaponButtonToPanel: WeaponButtonWidgetClass is null."));
-		return;
-	}
-
-	if (!WeaponDataAsset.IsValid())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("AddWeaponButtonToPanel: WeaponDataAsset is null."));
-		return;
-	}
-
-
 	for (const TPair<FName, UBlueprintGeneratedClass*>& WeaponPair : WeaponDataAsset->BaseWeaponClasses)
 	{
-		AddButtonToPanel(TargetPanel, WeaponButtonWidgetClass, WeaponPair.Key);
+		if (!GetOwner() || !TargetPanel || !WeaponButtonWidgetClass) return;
+	
+		UWorld* World = GetOwner()->GetWorld();
+		UUserWidget* CreatedWidget = CreateWidget<UUserWidget>(World, WeaponButtonWidgetClass);
+		if (!CreatedWidget)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Created widget null"));
+			return;
+		}
+		if (UTGInventoryWeaponButton* InventoryButton = Cast<UTGInventoryWeaponButton>(CreatedWidget))
+		{
+			int32 myStat = MyGameInstance->GetWeaponStats(WeaponPair.Key);
+			InventoryButton->SetupButton(WeaponPair.Key, myStat, 0);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Failed to cast the created widget to TGInventoryWeaponButton."));
+			return;
+		}
+		TargetPanel->AddChild(CreatedWidget);
 	}
 }
 
-void UTGCustomizingComponent::AddModuleButtonToPanel(UScrollBox* TargetPanel) const
+void UTGCustomizingComponent::GenerateModuleButtons(UScrollBox* TargetPanel) const
 {
 	if (!TargetPanel || !ModuleButtonWidgetClass)
 	{
@@ -128,9 +122,59 @@ void UTGCustomizingComponent::AddModuleButtonToPanel(UScrollBox* TargetPanel) co
 
 	for (const TPair<FName, FMeshCategoryData>& TargetMap : ModuleDataAsset->BaseMeshComponent)
 	{
-		AddButtonToPanel(TargetPanel, ModuleButtonWidgetClass, TargetMap.Key);
+		UWorld* World = GetOwner()->GetWorld();
+		UUserWidget* CreatedWidget = CreateWidget<UUserWidget>(World, ModuleButtonWidgetClass);
+		if (!CreatedWidget)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Created widget null"));
+			return;
+		}
+		if (UTGInventoryWeaponButton* InventoryButton = Cast<UTGInventoryWeaponButton>(CreatedWidget))
+		{
+			InventoryButton->SetupButton(TargetMap.Key, 0, 0);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Failed to cast the created widget to TGInventoryWeaponButton."));
+			return;
+		}
+		TargetPanel->AddChild(CreatedWidget);
 	}
 }
+
+void UTGCustomizingComponent::GenerateArmourButtons(UScrollBox* TargetPanel) const
+{
+	if (!TargetPanel || !ArmourButtonWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Invalid parameters. Module"));
+		return;
+	}
+
+	for (const TPair<FName, UBlueprintGeneratedClass*>& ArmourPair : ArmourDataAsset->BaseArmourClass)
+	{
+		if (!GetOwner() || !TargetPanel || !ArmourButtonWidgetClass) return;
+	
+		UWorld* World = GetOwner()->GetWorld();
+		UUserWidget* CreatedWidget = CreateWidget<UUserWidget>(World, ArmourButtonWidgetClass);
+		if (!CreatedWidget)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Created widget null"));
+			return;
+		}
+		if (UTGInventoryWeaponButton* InventoryButton = Cast<UTGInventoryWeaponButton>(CreatedWidget))
+		{
+			int32 MyStat = MyGameInstance->GetArmourStats(ArmourPair.Key);
+			InventoryButton->SetupButton(ArmourPair.Key, 0, MyStat);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Failed to cast the created widget to TGInventoryWeaponButton."));
+			return;
+		}
+		TargetPanel->AddChild(CreatedWidget);
+	}
+}
+
 
 AActor* UTGCustomizingComponent::SpawnWeapon(FName WeaponID)
 {
@@ -150,8 +194,28 @@ AActor* UTGCustomizingComponent::SpawnWeapon(FName WeaponID)
 	FActorSpawnParameters SpawnParameters;
 
 	return GetWorld()->SpawnActor<AActor>(WeaponClass);
-	
 }
+
+AActor* UTGCustomizingComponent::SpawnArmour(FName ArmourID)
+{
+	if (!ArmourDataAsset.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("ArmourDataAsset is null."));
+		return nullptr;
+	}
+
+	UBlueprintGeneratedClass* ArmourClass = GetArmourClassById(ArmourID, ArmourDataAsset.Get());
+	if (!ArmourClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ArmourClass class not found."));
+		return nullptr;
+	}
+
+	FActorSpawnParameters SpawnParameters;
+
+	return GetWorld()->SpawnActor<AActor>(ArmourClass);
+}
+
 
 
 void UTGCustomizingComponent::SpawnCurrentWeapon(FName WeaponID)
@@ -173,6 +237,27 @@ void UTGCustomizingComponent::SpawnCurrentWeapon(FName WeaponID)
 		UE_LOG(LogTemp, Error, TEXT("Spawned actor does not implement ITGWeaponInterface."));
 	}
 }
+
+void UTGCustomizingComponent::SpawnCurrentArmour(FName ArmourID)
+{
+	CurrentSpawnedActor = SpawnArmour(ArmourID);
+	if (!CurrentSpawnedActor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to spawn armour."));
+		return;
+	}
+	
+	CurrentSpawnedActor->SetActorEnableCollision(false);
+	if (CurrentSpawnedActor->GetClass()->ImplementsInterface(UTGArmourInterface::StaticClass()))
+	{
+		ITGArmourInterface::Execute_SetArmourID(CurrentSpawnedActor, ArmourID);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("TGCustomizingComp :: Spawned actor does not implement ITGArmourInterface."));
+	}
+}
+
 
 void UTGCustomizingComponent::SpawnModule(FName WeaponID) const
 {
@@ -216,39 +301,21 @@ void UTGCustomizingComponent::AlterModuleComponent(FName WeaponID)
 }
 
 
-bool UTGCustomizingComponent::AttachWeapon() const
+
+
+bool UTGCustomizingComponent::AttachActor() const
 {
-	if (!MySkeletalMeshComponent)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SkeletalMeshComponent is not valid."));
-		return false;
-	}
-
-	if (!CurrentSpawnedActor)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("CurrentSpawnedActor is not valid or not spawned."));
-		return false;
-	}
-
-	if (!WeaponDataAsset.IsValid())
-	{
-		UE_LOG(LogTemp, Error, TEXT("WeaponDataAsset is null."));
-		return false;
-	}
 	AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(CurrentSpawnedActor->GetClass(), MySkeletalMeshComponent->GetComponentLocation(), FRotator::ZeroRotator);
 	ClonedActor->AttachToComponent(MySkeletalMeshComponent, FAttachmentTransformRules::SnapToTargetIncludingScale, CurrentTargetBone);
 	ClonedActor->SetActorEnableCollision(true);
-	if (ClonedActor->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()) && CurrentSpawnedActor->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()))
+	if (!WeaponRegister(ClonedActor))
 	{
-		const FName TempWeaponID = ITGWeaponInterface::Execute_GetWeaponID(CurrentSpawnedActor);
-		ITGWeaponInterface::Execute_SetWeaponID(ClonedActor, TempWeaponID);
-		ITGWeaponInterface::Execute_SetBoneID(ClonedActor, CurrentTargetBone);
-		const FAttachedActorData TempData(TempWeaponID, ClonedActor->GetActorRotation());
-		MyGameInstance->AttachedActorsMap.Add(CurrentTargetBone, TempData);
+		UE_LOG(LogTemp, Error, TEXT("Failed to register weapon."));
 	}
-	else
+
+	if (!ArmourRegister(ClonedActor))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Spawned actor does not implement ITGWeaponInterface."));
+		UE_LOG(LogTemp, Error, TEXT("Failed to register armour."));
 	}
 	
 	if (!ClonedActor)
@@ -256,9 +323,49 @@ bool UTGCustomizingComponent::AttachWeapon() const
 		UE_LOG(LogTemp, Error, TEXT("Failed to spawn cloned actor."));
 		return false;
 	}
-	
+    
 	return true;
 }
+
+
+
+
+bool UTGCustomizingComponent::WeaponRegister(AActor* ClonedActor) const
+{
+	if (ClonedActor->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()) && CurrentSpawnedActor->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()))
+	{
+		const FName TempWeaponID = ITGWeaponInterface::Execute_GetWeaponID(CurrentSpawnedActor);
+		ITGWeaponInterface::Execute_SetWeaponID(ClonedActor, TempWeaponID);
+		ITGWeaponInterface::Execute_SetBoneID(ClonedActor, CurrentTargetBone);
+		const FAttachedActorData TempData(TempWeaponID, ClonedActor->GetActorRotation());
+		MyGameInstance->SetWeaponActorData(CurrentTargetBone, TempData);
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Spawned actor does not implement ITGWeaponInterface."));
+		return false;
+	}
+}
+
+bool UTGCustomizingComponent::ArmourRegister(AActor* ClonedActor) const
+{
+	if (ClonedActor->GetClass()->ImplementsInterface(UTGArmourInterface::StaticClass()) && CurrentSpawnedActor->GetClass()->ImplementsInterface(UTGArmourInterface::StaticClass()))
+	{
+		const FName TempArmourID = ITGArmourInterface::Execute_GetArmourID(CurrentSpawnedActor);
+		ITGArmourInterface::Execute_SetArmourID(ClonedActor, TempArmourID);
+		ITGArmourInterface::Execute_SetBoneID(ClonedActor, CurrentTargetBone);
+		const FAttachedActorData TempData(TempArmourID, ClonedActor->GetActorRotation());
+		MyGameInstance->SetArmourActorData(CurrentTargetBone, TempData);
+		return true;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Spawned actor does not implement ITGArmourInterface."));
+		return false;
+	}
+}
+
 
 void UTGCustomizingComponent::RemoveWeaponFromCharacter(AActor* WeaponToRemove) const
 {
@@ -267,11 +374,24 @@ void UTGCustomizingComponent::RemoveWeaponFromCharacter(AActor* WeaponToRemove) 
 		if (WeaponToRemove->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()))
 		{
 			FName TempBoneID = ITGWeaponInterface::Execute_GetBoneID(WeaponToRemove);
-			MyGameInstance->AttachedActorsMap.FindAndRemoveChecked(TempBoneID);
+			MyGameInstance->RemoveFromWeaponActorsMap(TempBoneID);
 		}
 
 		WeaponToRemove->Destroy();
 		WeaponToRemove = nullptr;
+	}
+}
+
+void UTGCustomizingComponent::RemoveArmourFromCharacter(AActor* ArmourToRemove, FName TempBoneID) const
+{
+	if (ArmourToRemove)
+	{
+		if (ArmourToRemove->GetClass()->ImplementsInterface(UTGArmourInterface::StaticClass()))
+		{
+			MyGameInstance->RemoveFromArmourActorsMap(TempBoneID);
+		}
+		ArmourToRemove->Destroy();
+		ArmourToRemove = nullptr;
 	}
 }
 
@@ -293,30 +413,34 @@ void UTGCustomizingComponent::UpdateWeaponActorPosition(const FVector& WorldLoca
 
 bool UTGCustomizingComponent::IsWeaponNearBone()
 {
-	if (MySkeletalMeshComponent && CurrentSpawnedActor)
+	if (!MySkeletalMeshComponent && CurrentSpawnedActor)
 	{
-		FVector TargetLocation = CurrentSpawnedActor->GetActorLocation();
-		FVector ClosestBoneLocation;
-		FName ClosestBoneName = MySkeletalMeshComponent->FindClosestBone(TargetLocation, &ClosestBoneLocation);
-		if (!ClosestBoneName.IsNone())
-		{
-			float ClosestBoneDistance = FVector::Dist(TargetLocation, ClosestBoneLocation);
-			if (ClosestBoneDistance < SnapCheckDistance)
-			{
-				SnapActor(ClosestBoneLocation, ClosestBoneDistance, ClosestBoneName);
-				return true;
-			} else
-			{
-				return false;
-			}
-		} else
-		{
-			return false;
-		}
-	} else
-	{
+		UE_LOG(LogTemp, Warning, TEXT("Invalid state for weapon-bone proximity check"));
 		return false;
 	}
+
+	FVector targetLocation = CurrentSpawnedActor->GetActorLocation();
+	FVector closestBoneLocation;
+	FName closestBoneName = MySkeletalMeshComponent->FindClosestBone(targetLocation, &closestBoneLocation);
+
+	if (closestBoneName.IsNone())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No valid bone found for proximity check"));
+		return false;
+	}
+
+	float closestBoneDistance = FVector::Distance(targetLocation, closestBoneLocation);
+	return IsWithinSnapDistance(closestBoneDistance, closestBoneLocation, closestBoneName);
+}
+
+
+bool UTGCustomizingComponent::IsWithinSnapDistance(float distance, const FVector& boneLocation, FName boneName)
+{
+	if (distance < SnapCheckDistance)
+	{
+		return SnapActor(boneLocation, distance, boneName);
+	}
+	return false;
 }
 
 void UTGCustomizingComponent::UnSnapActor()
@@ -340,10 +464,25 @@ void UTGCustomizingComponent::SaveRotationData() const
 	if (CurrentRotationSelectedActor->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()))
 	{
 		const FName TargetID = ITGWeaponInterface::Execute_GetBoneID(CurrentRotationSelectedActor);
-		FAttachedActorData* FoundActorData = MyGameInstance->AttachedActorsMap.Find(TargetID);
-		if (FoundActorData)
+		FAttachedActorData FoundActorData;
+		if (MyGameInstance->GetWeaponActorData(TargetID, FoundActorData))
 		{
-			FoundActorData->Rotation = CurrentRotationSelectedActor->GetActorRotation();
+			FoundActorData.Rotation = CurrentRotationSelectedActor->GetActorRotation();
+			MyGameInstance->SetWeaponActorData(TargetID, FoundActorData);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Actor data not found for TargetID: %s"), *TargetID.ToString());
+		}
+	}
+	else if (CurrentRotationSelectedActor->GetClass()->ImplementsInterface(UTGArmourInterface::StaticClass()))
+	{
+		const FName TargetID = ITGArmourInterface::Execute_GetBoneID(CurrentRotationSelectedActor);
+		FAttachedActorData FoundActorData;
+		if (MyGameInstance->GetArmourActorData(TargetID, FoundActorData))
+		{
+			FoundActorData.Rotation = CurrentRotationSelectedActor->GetActorRotation();
+			MyGameInstance->SetArmourActorData(TargetID, FoundActorData);
 		}
 		else
 		{
@@ -363,7 +502,7 @@ void UTGCustomizingComponent::ResetHoldingData()
 	}
 }
 
-void UTGCustomizingComponent::SetWeaponRotation(FQuat Rotation) const
+void UTGCustomizingComponent::SetTargetActorRotation(FQuat Rotation) const
 {
 	if(CurrentRotationSelectedActor)
 	{
@@ -371,9 +510,16 @@ void UTGCustomizingComponent::SetWeaponRotation(FQuat Rotation) const
 	}
 }
 
-void UTGCustomizingComponent::SetCurrentRotationSelectedActor(AActor* TargetActor)
+bool UTGCustomizingComponent::SetCurrentRotationSelectedActor(AActor* TargetActor)
 {
-	CurrentRotationSelectedActor = TargetActor;
+	if(TargetActor)
+	{
+		CurrentRotationSelectedActor = TargetActor;
+		return true;
+	} else
+	{
+		return false;
+	}
 }
 
 void UTGCustomizingComponent::DrawDebugHighlight() const

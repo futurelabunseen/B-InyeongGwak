@@ -13,10 +13,12 @@ class TOPGUN_API UTGInventoryWeaponButton : public UUserWidget
 
 public:
 	UFUNCTION(BlueprintCallable)
-	void SetupButton(FName WeaponName);
+	void SetupButton(FName WeaponName, int32 attackProperty, int32 defenseProperty);
 	UPROPERTY(BlueprintReadOnly)
 	FName WeaponID;
 protected:
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* TitleText;
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* PropertyText;
 };

@@ -20,6 +20,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Stat, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UTGCharacterStatComponent> Stat;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	TArray<UParticleSystem*> DamageEffect;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effects")
+	TArray<UParticleSystem*> DeathEffect;
+
 protected:
 	virtual void SetCharacterControlData(const class UTGPlayerControlData* CharacterControlData);
 	float KnockBackAmount;
@@ -31,5 +37,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Widget, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UWidgetComponent> HpBar;
 
+	UFUNCTION(BlueprintCallable)
 	virtual void SetupCharacterWidget(class UTGUserWidget* InUserWidget) override;
+	
+	void PlayEffect(TArray<UParticleSystem*> Effect, float Time);
 };

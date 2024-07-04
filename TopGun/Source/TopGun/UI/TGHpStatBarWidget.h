@@ -28,5 +28,8 @@ protected:
 	TObjectPtr<class UProgressBar> HpProgressBar;
 
 	UPROPERTY()
+	TObjectPtr<class UTextBlock> HpText;
+	
+	UPROPERTY()
 	float MaxHp;
 };
