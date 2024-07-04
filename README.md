@@ -14,7 +14,7 @@ TopGun
 ![슬라이드5](https://github.com/futurelabunseen/B-InyeongGwak/assets/109887066/e084d57a-e622-45f6-bfe5-15aca0236025)
 ![슬라이드6](https://github.com/futurelabunseen/B-InyeongGwak/assets/109887066/84788b26-b63a-431c-9527-b2a0151df99e)
 ![슬라이드7](https://github.com/futurelabunseen/B-InyeongGwak/assets/109887066/5159b7d7-d5f4-470a-9bc2-19d576776752)
-![슬라이드8](https://github.com/futurelabunseen/B-InyeongGwak/assets/109887066/2dac081d-430e-41ae-80d0-9ee527ebea0b)
+![스크린샷 2024-07-05 012709](https://github.com/futurelabunseen/B-InyeongGwak/assets/109887066/9ad160fe-d0a8-4cd8-8a9b-0c8ee8ee59f1)
 ![슬라이드9](https://github.com/futurelabunseen/B-InyeongGwak/assets/109887066/07befd53-e48b-461d-93cb-e5d317168b08)
 ![슬라이드10](https://github.com/futurelabunseen/B-InyeongGwak/assets/109887066/51bbd12a-0397-4367-9ee7-75a394edf673)
 ![슬라이드11](https://github.com/futurelabunseen/B-InyeongGwak/assets/109887066/4b10b2d2-820f-47ea-9fd9-9103d9405989)
