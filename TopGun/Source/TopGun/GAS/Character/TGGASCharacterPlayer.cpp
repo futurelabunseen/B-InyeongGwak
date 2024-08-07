@@ -52,8 +52,8 @@ void ATGGASCharacterPlayer::SetupGASInputComponent()
 	{
 		UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(InputComponent);
 
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ATGGASCharacterPlayer::GASInputPressed,0); //zereo is the input ID
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ATGGASCharacterPlayer::GASInputReleased,0);
+		//EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &ATGGASCharacterPlayer::GASInputPressed,0); //zereo is the input ID
+		//EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ATGGASCharacterPlayer::GASInputReleased,0);
 	}
 }
 

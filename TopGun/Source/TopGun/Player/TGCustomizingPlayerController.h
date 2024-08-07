@@ -79,9 +79,11 @@ public:
     UFUNCTION(BlueprintCallable)
     void AddArmourButtonToPanel(UScrollBox* TargetPanel);
     UFUNCTION(BlueprintCallable)
-    void OnWeaponSelected(FName WeaponID);
-    UFUNCTION(BlueprintCallable)
-    void OnArmourSelected(FName WeaponID);
+    void OnEquipSelect(FName WeaponID);
+    //UFUNCTION(BlueprintCallable)
+    //void OnWeaponSelected(FName WeaponID);
+    //UFUNCTION(BlueprintCallable)
+    //void OnArmourSelected(FName WeaponID);
     UFUNCTION(BlueprintCallable)
     void OnModuleSelected(FName WeaponID);
 

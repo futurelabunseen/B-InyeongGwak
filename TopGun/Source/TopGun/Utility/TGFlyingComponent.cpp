@@ -1,5 +1,3 @@
-// TGFlyingComponent.cpp
-
 #include "TGFlyingComponent.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
@@ -14,6 +12,17 @@ UTGFlyingComponent::UTGFlyingComponent()
     FlightRotationInterpSpeed = 5.0f;
     bIsFlying = false;
     bBoost = false;
+
+    GroundBrakingDeceleration = 2000.0f;
+    FlyingBrakingDeceleration = 6000.0f;
+    NormalFlySpeed = 800.0f;
+    BoostFlySpeed = 3000.0f;
+
+    BoostDuration = 0.0f;
+    MaxBoostDuration = 2.0f;
+    StiffDecelerationMultiplier = 2.0f;
+    bIsStiffDecelerating = false;
+    bWantsToFly = false;
 }
 
 void UTGFlyingComponent::BeginPlay()
@@ -36,13 +45,32 @@ void UTGFlyingComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
     UpdateCameraAndArm(DeltaTime);
+    UpdateGroundDetection();
 
     if (bIsFlying)
     {
         UpdateRotation(DeltaTime);
+
+        if (bBoost)
+        {
+            BoostDuration += DeltaTime;
+            if (BoostDuration >= MaxBoostDuration && !bIsStiffDecelerating)
+            {
+                StartStiffDeceleration();
+            }
+        }
+        else
+        {
+            BoostDuration = 0.0f;
+            bIsStiffDecelerating = false;
+        }
+
+        if (bIsStiffDecelerating)
+        {
+            ApplyStiffDeceleration(DeltaTime);
+        }
     }
 
-    // Update LastVelocityRotation
     FVector Velocity = OwnerCharacter ? OwnerCharacter->GetVelocity() : FVector::ZeroVector;
     if (!Velocity.IsNearlyZero())
     {
@@ -56,9 +84,9 @@ void UTGFlyingComponent::EnableFlight()
     {
         CharacterMovement->SetMovementMode(MOVE_Flying);
         CharacterMovement->bOrientRotationToMovement = false;
-        CharacterMovement->BrakingDecelerationFlying = 6000.0f;
+        CharacterMovement->BrakingDecelerationFlying = FlyingBrakingDeceleration;
         CharacterMovement->MaxAcceleration = 6000.0f;
-        CharacterMovement->MaxFlySpeed = 800.0f;
+        CharacterMovement->MaxFlySpeed = NormalFlySpeed;
     }
 
     DesiredFOV = 120.0f;
@@ -79,15 +107,14 @@ void UTGFlyingComponent::DisableFlight()
     {
         CharacterMovement->SetMovementMode(MOVE_Falling);
         CharacterMovement->bOrientRotationToMovement = true;
-        CharacterMovement->BrakingDecelerationFlying = 0.0f;
+        CharacterMovement->BrakingDecelerationFlying = GroundBrakingDeceleration;
         CharacterMovement->MaxAcceleration = 1500.0f;
-        CharacterMovement->MaxFlySpeed = 800.0f;
+        CharacterMovement->MaxFlySpeed = NormalFlySpeed;
     }
 
     DesiredFOV = 90.0f;
     DesiredSocketOffset = DefaultSocketOffset;
     bIsFlying = false;
-    bBoost = false;
     
     APlayerController* PC = OwnerCharacter ? Cast<APlayerController>(OwnerCharacter->GetController()) : nullptr;
     if (PC)
@@ -133,15 +160,17 @@ void UTGFlyingComponent::Look(const FInputActionValue& Value)
     OwnerCharacter->AddControllerPitchInput(LookAxisVector.Y);
 }
 
-void UTGFlyingComponent::Jump()
+void UTGFlyingComponent::ToggleFlight()
 {
-    if (bIsFlying)
-    {
-        DisableFlight();
-    }
-    else
+    bWantsToFly = !bWantsToFly;
+    
+    if (bWantsToFly && !bIsFlying)
     {
         EnableFlight();
+    }
+    else if (!bWantsToFly && bIsFlying)
+    {
+        DisableFlight();
     }
 }
 
@@ -154,16 +183,18 @@ void UTGFlyingComponent::Boost(const FInputActionValue& Value)
     if (bBoost)
     {
         DesiredFOV = 120.0f;
-        CharacterMovement->MaxFlySpeed = 3000.0f;
-        CharacterMovement->BrakingDecelerationFlying = 6000.0f;
+        CharacterMovement->MaxFlySpeed = BoostFlySpeed;
+        CharacterMovement->BrakingDecelerationFlying = FlyingBrakingDeceleration;
         CharacterMovement->MaxAcceleration = 6000.0f;
+        bIsStiffDecelerating = false;
     }
     else
     {
         DesiredFOV = 90.0f;
-        CharacterMovement->MaxFlySpeed = 800.0f;
-        CharacterMovement->BrakingDecelerationFlying = 0.0f;
+        CharacterMovement->MaxFlySpeed = NormalFlySpeed;
+        CharacterMovement->BrakingDecelerationFlying = FlyingBrakingDeceleration;
         CharacterMovement->MaxAcceleration = 1500.0f;
+        BoostDuration = 0.0f;
     }
 }
 
@@ -212,4 +243,72 @@ bool UTGFlyingComponent::ShouldUseLastVelocityRotation() const
 {
     FVector Velocity = OwnerCharacter ? OwnerCharacter->GetVelocity() : FVector::ZeroVector;
     return (Velocity.Size() > 1.0f) && !bBoost;
+}
+
+bool UTGFlyingComponent::IsOnGround() const
+{
+    if (!CharacterMovement)
+        return false;
+
+    return CharacterMovement->IsMovingOnGround();
+}
+
+void UTGFlyingComponent::UpdateGroundDetection()
+{
+    if (!CharacterMovement)
+        return;
+
+    bool bWasOnGround = IsOnGround();
+    bool bIsOnGround = CharacterMovement->IsMovingOnGround();
+
+    if (bIsOnGround)
+    {
+        CharacterMovement->BrakingDecelerationWalking = GroundBrakingDeceleration;
+        if (bIsFlying)
+        {
+            DisableFlight();
+            bWantsToFly = false;
+        }
+    }
+    else
+    {
+        CharacterMovement->BrakingDecelerationFlying = FlyingBrakingDeceleration;
+        
+        // If the character just left the ground and wants to fly, enable flight
+        if (!bWasOnGround && bWantsToFly && !bIsFlying)
+        {
+            EnableFlight();
+        }
+    }
+}
+
+void UTGFlyingComponent::StartStiffDeceleration()
+{
+    bIsStiffDecelerating = true;
+    if (CharacterMovement)
+    {
+        CharacterMovement->BrakingDecelerationFlying = FlyingBrakingDeceleration * StiffDecelerationMultiplier;
+    }
+}
+
+void UTGFlyingComponent::ApplyStiffDeceleration(float DeltaTime)
+{
+    if (!CharacterMovement) return;
+
+    FVector CurrentVelocity = CharacterMovement->Velocity;
+    float CurrentSpeed = CurrentVelocity.Size();
+
+    if (CurrentSpeed > NormalFlySpeed)
+    {
+        float DecelerationRate = CharacterMovement->BrakingDecelerationFlying * DeltaTime;
+        float NewSpeed = FMath::Max(CurrentSpeed - DecelerationRate, NormalFlySpeed);
+        FVector NewVelocity = CurrentVelocity.GetSafeNormal() * NewSpeed;
+        CharacterMovement->Velocity = NewVelocity;
+    }
+    else
+    {
+        bIsStiffDecelerating = false;
+        CharacterMovement->BrakingDecelerationFlying = FlyingBrakingDeceleration;
+        BoostDuration = 0.0f;
+    }
 }

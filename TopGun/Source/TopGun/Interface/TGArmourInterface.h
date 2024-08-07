@@ -1,41 +1,23 @@
+// TGArmourInterface.h
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/Interface.h"
-#include "GameFramework/SpringArmComponent.h"
+#include "TGBaseEquipmentInterface.h"
 #include "TGArmourInterface.generated.h"
 
-// This class does not need to be modified.
 UINTERFACE(MinimalAPI)
-class UTGArmourInterface : public UInterface
+class UTGArmourInterface : public UTGBaseEquipmentInterface
 {
 	GENERATED_BODY()
 };
 
-/**
- * 
- */
-class TOPGUN_API ITGArmourInterface
+class TOPGUN_API ITGArmourInterface : public ITGBaseEquipmentInterface
 {
 	GENERATED_BODY()
-
-	
 public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	void SetArmourID(FName WeaponID);
+	int32 GetDefensePoint();
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	void SetBoneID(FName BoneID);
-
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	FName GetArmourID();
-
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	FName GetBoneID();
-	
-	virtual void InitializeArmour(FName ArmourID, FName BoneID) = 0;
-
-	virtual void SetSpringArmComponent(USpringArmComponent* SpringArmComponent) = 0;
-
-	virtual USpringArmComponent* GetSpringArmComponent() const = 0;
+	void SetDefensePoint(int32 NewDefensePoint);
 };

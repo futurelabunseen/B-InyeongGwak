@@ -1,5 +1,3 @@
-// TGFlyingComponent.h
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -24,7 +22,7 @@ public:
     void DisableFlight();
     void Move(const FInputActionValue& Value);
     void Look(const FInputActionValue& Value);
-    void Jump();
+    void ToggleFlight();
     void Boost(const FInputActionValue& Value);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flying")
@@ -48,6 +46,18 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Flying")
     FRotator LastVelocityRotation;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flying")
+    float GroundBrakingDeceleration;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flying")
+    float FlyingBrakingDeceleration;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flying")
+    float NormalFlySpeed;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flying")
+    float BoostFlySpeed;
+
 protected:
     virtual void BeginPlay() override;
 
@@ -57,6 +67,10 @@ private:
     void SmoothRotation(const FRotator& Target, float ConstantSpeed, float SmoothSpeed, float DeltaTime);
     FRotator CalculateTargetRotation() const;
     bool ShouldUseLastVelocityRotation() const;
+    bool IsOnGround() const;
+    void UpdateGroundDetection();
+    void StartStiffDeceleration();
+    void ApplyStiffDeceleration(float DeltaTime);
 
     UPROPERTY()
     ACharacter* OwnerCharacter;
@@ -71,4 +85,10 @@ private:
     USpringArmComponent* CameraBoom;
 
     FRotator FlyingRotation;
+
+    float BoostDuration;
+    float MaxBoostDuration;
+    float StiffDecelerationMultiplier;
+    bool bIsStiffDecelerating;
+    bool bWantsToFly;
 };

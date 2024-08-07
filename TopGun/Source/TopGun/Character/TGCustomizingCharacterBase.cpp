@@ -1,5 +1,4 @@
 #include "TGCustomizingCharacterBase.h"
-#include "Armour/TGBaseArmour.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -9,7 +8,11 @@
 #include "Utility/TGArmoursDataAsset.h"
 #include "Utility/TGCustomizingComponent.h"
 #include "Utility/TGModuleDataAsset.h"
-#include "Weapon/TGBaseWeapon.h"
+#include "Equip/TGBaseWeapon.h"
+#include "ProfilingDebugging/CsvProfiler.h"
+#include "HAL/IConsoleManager.h"
+#include "Interface/TGArmourInterface.h"
+#include "Utility/TGEquipmentManager.h"
 
 ATGCustomizingCharacterBase::ATGCustomizingCharacterBase()
 {
@@ -42,8 +45,8 @@ void ATGCustomizingCharacterBase::SetupCharacterWidget(UTGUserWidget* InUserWidg
     if (StatWidget)
     {
         UE_LOG(LogTemp, Error, TEXT("StatWidget Setting up."));
-        MyGameInstance->OnChangeStat.AddUObject(StatWidget, &UTGStatWidget::UpdateStatBar);
-        MyGameInstance->BroadcastTotalStats();        
+        MyGameInstance->GetEquipmentManager()->OnChangeStat.AddUObject(StatWidget, &UTGStatWidget::UpdateStatBar);
+        MyGameInstance->GetEquipmentManager()->BroadcastTotalStats();        
     }
     else
     {
@@ -64,6 +67,53 @@ void ATGCustomizingCharacterBase::BeginPlay()
     SetupPlayerModel(GetMesh());
 }
 
+
+void ATGCustomizingCharacterBase::SetupEquip(USkeletalMeshComponent* TargetMesh) const
+{
+    for (const auto& Elem : MyGameInstance->GetEquipmentManager()->GetEntireAttachedEquipActorMap())
+    {
+        if (!SpawnEquip(TargetMesh, Elem.Key.ActorID, Elem.Key.BoneID, Elem.Value.Rotation))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Failed to setup equip : %s"), *Elem.Key.ActorID.ToString());
+        }
+    }
+}
+
+
+bool ATGCustomizingCharacterBase::SpawnEquip(USkeletalMeshComponent* TargetMesh, const FName& EquipID, const FName& BoneID, const FRotator& Rotation) const
+{
+        UE_LOG(LogTemp, Error, TEXT("Failed to spawn actor for Equipment"), *EquipID.ToString());
+    UBlueprintGeneratedClass* EquipClass = MyGameInstance->GetEquipmentManager()->GetEquipClassByID(EquipID);
+    if (!EquipClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("EquipClass is null for Equipment"));
+        return false;
+    }
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(EquipClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+    if (!ClonedActor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to spawn actor for Equipment"));
+        return false;
+    }
+    ClonedActor->AttachToComponent(TargetMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BoneID);
+    ClonedActor->SetActorRotation(Rotation);
+    ClonedActor->SetActorEnableCollision(true);
+    if(!ClonedActor->Implements<UTGBaseEquipmentInterface>())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to cast to UTGEquipInterface for actor: %s"), *ClonedActor->GetName());
+        ClonedActor->Destroy();
+        FPlatformMisc::RequestExit(false);
+        return false;
+    }
+    ITGBaseEquipmentInterface::Execute_SetEquipmentID(ClonedActor, EquipID);
+    ITGBaseEquipmentInterface::Execute_SetBoneID(ClonedActor, BoneID);
+
+    return true;
+}
+
+
 void ATGCustomizingCharacterBase::SetupPlayerModel(USkeletalMeshComponent* TargetMesh) const
 {
     if (!MyGameInstance.IsValid() || !MyGameInstance->ModuleDataAsset)
@@ -71,10 +121,8 @@ void ATGCustomizingCharacterBase::SetupPlayerModel(USkeletalMeshComponent* Targe
         UE_LOG(LogTemp, Error, TEXT("GameInstance or ModuleDataAsset is invalid."));
         return;
     }
-
     SetupCharacterParts();
-    SetupWeapons(TargetMesh);
-    SetupArmour(TargetMesh);
+    SetupEquip(TargetMesh);
 }
 
 void ATGCustomizingCharacterBase::SetupCharacterParts() const
@@ -112,6 +160,7 @@ void ATGCustomizingCharacterBase::ResetGameCustomization()
     UGameplayStatics::OpenLevel(this, FName(*GetWorld()->GetName()), false);
 }
 
+/*
 void ATGCustomizingCharacterBase::SetupWeapons(USkeletalMeshComponent* TargetMesh) const
 {
     if (!MyGameInstance.IsValid() || !MyGameInstance->WeaponDataAsset)
@@ -140,7 +189,7 @@ void ATGCustomizingCharacterBase::SetupWeapons(USkeletalMeshComponent* TargetMes
         }
     }
 }
-
+ 
 bool ATGCustomizingCharacterBase::SetupSingleWeapon(UWorld* World, USkeletalMeshComponent* TargetMesh, const FName& WeaponID, const FName& BoneID, const FRotator& Rotation) const
 {
     if (!MyGameInstance->WeaponDataAsset->BaseWeaponClasses.Contains(WeaponID))
@@ -177,56 +226,17 @@ bool ATGCustomizingCharacterBase::SetupSingleWeapon(UWorld* World, USkeletalMesh
         ClonedActor->Destroy();
         return false;
     }
-
-    WeaponActor->WeaponID = WeaponID;
-    WeaponActor->BoneID = BoneID;
+    
+    if (WeaponActor && WeaponActor->Implements<UTGBaseEquipmentInterface>())
+    {
+        ITGBaseEquipmentInterface::Execute_SetEquipmentID(WeaponActor, WeaponID);
+        ITGBaseEquipmentInterface::Execute_SetBoneID(WeaponActor, BoneID);
+    }
 
     return true;
 }
+*/
 
-void ATGCustomizingCharacterBase::SetupArmour(USkeletalMeshComponent* TargetMesh) const
-{
-    for (const auto& Elem : MyGameInstance->GetEntireArmourActorMap())
-    {
-        FName BoneID = Elem.Key;
-        FName ArmourID = Elem.Value.ActorID;
-
-        if (!MyGameInstance->ArmourDataAsset || !MyGameInstance->ArmourDataAsset->BaseArmourClass.Contains(ArmourID))
-        {
-            UE_LOG(LogTemp, Error, TEXT("ArmourDataAsset or BaseArmourClass is invalid for ArmourID: %s"), *ArmourID.ToString());
-            continue;
-        }
-
-        UBlueprintGeneratedClass* ArmourClass = *MyGameInstance->ArmourDataAsset->BaseArmourClass.Find(ArmourID);
-        if (!ArmourClass)
-        {
-            UE_LOG(LogTemp, Error, TEXT("ArmourClass is null for ArmourID: %s"), *ArmourID.ToString());
-            continue;
-        }
-
-        AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(ArmourClass, FVector::ZeroVector, FRotator::ZeroRotator);
-        if (!ClonedActor)
-        {
-            UE_LOG(LogTemp, Error, TEXT("Failed to spawn actor for ArmourClass: %s"), *ArmourClass->GetName());
-            continue;
-        }
-
-        ClonedActor->AttachToComponent(TargetMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BoneID);
-        ClonedActor->SetActorRotation(Elem.Value.Rotation);
-        ClonedActor->SetActorEnableCollision(true);
-
-        ATGBaseArmour* ArmourActor = Cast<ATGBaseArmour>(ClonedActor);
-        if (!ArmourActor)
-        {
-            UE_LOG(LogTemp, Error, TEXT("Failed to cast to ATGBaseArmour for actor: %s"), *ClonedActor->GetName());
-            ClonedActor->Destroy(); // Cleanup if cast fails
-            continue;
-        }
-
-        ArmourActor->ArmourID = ArmourID;
-        ArmourActor->BoneID = BoneID;
-    }
-}
 
 void ATGCustomizingCharacterBase::Tick(float DeltaSeconds)
 {

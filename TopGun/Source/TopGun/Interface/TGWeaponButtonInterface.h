@@ -20,5 +20,7 @@ class TOPGUN_API ITGWeaponButtonInterface
 	GENERATED_BODY()
 
 public:
-    virtual void SetupButton(FName WeaponName, FWeaponButtonClickedDelegate ClickedDelegate) = 0;
+    //virtual void SetupButton(FName WeaponName, FWeaponButtonClickedDelegate ClickedDelegate) = 0;
+	//virtual void SetSpringArmComponent(USpringArmComponent* SpringArmComponent);
+	//virtual USpringArmComponent* GetSpringArmComponent() const;
 };

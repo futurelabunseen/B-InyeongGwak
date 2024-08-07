@@ -1,51 +1,36 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
+// TGWeaponInterface.h
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/Interface.h"
-#include "GameFramework/SpringArmComponent.h" 
+#include "TGBaseEquipmentInterface.h"
 #include "TGWeaponInterface.generated.h"
 
-UINTERFACE(MinimalAPI)
-class UTGWeaponInterface : public UInterface
+UINTERFACE(MinimalAPI, Blueprintable)
+class UTGWeaponInterface : public UTGBaseEquipmentInterface
 {
 	GENERATED_BODY()
 };
 
-class TOPGUN_API ITGWeaponInterface
+class TOPGUN_API ITGWeaponInterface : public ITGBaseEquipmentInterface
 {
 	GENERATED_BODY()
 
 public:
 	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent)
-	void FunctionFireWeapon(bool FiringHeld, bool HitScan, bool ReadyFiring, USceneComponent * CameraComponent);
+	void FunctionFireWeapon(bool FiringHeld, bool HitScan, bool ReadyFiring, USceneComponent* CameraComponent);
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	void SetWeaponID(FName WeaponID);
+	void SetDefaultRotation();
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	void SetBoneID(FName BoneID);
+	void SetRotation(const FQuat& QuatRotation);
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	FName GetWeaponID();
+	FVector GetArrowForwardVector() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
-	FName GetBoneID();
-
-	virtual void InitializeWeapon(FName WeaponID, FName BoneID) = 0;
-
-	virtual void SetDefaultRotation() = 0;
-
-	virtual void SetRotation(const FQuat& QuatRotation) = 0;
-
-	virtual FVector GetArrowForwardVector() const = 0;
-
-	virtual FQuat GetDefaultRoationQuat() const = 0;
-	
-	virtual FQuat GetAimingRotation(const FVector& TargetVector) const = 0;
-
-	virtual void SetSpringArmComponent(USpringArmComponent* SpringArmComponent) = 0;
-
-	virtual USpringArmComponent* GetSpringArmComponent() const = 0;
+	FQuat GetDefaultRoationQuat() const;
+    
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	FQuat GetAimingRotation(const FVector& TargetVector) const;
 };

@@ -18,7 +18,9 @@
 UCLASS()
 class TOPGUN_API ATGCharacterPlayer : public ATGCharacterBase
 {
+	
 	GENERATED_BODY()
+	
 public :
 	ATGCharacterPlayer();
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -31,7 +33,7 @@ public :
 private :
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
-	virtual void Jump() override;
+	void Jump();
 	void Boost(const FInputActionValue& Value);
 	
 protected:
@@ -39,9 +41,11 @@ protected:
 	void SetCharacterControl() const;
 	void SetupPlayerModel(USkeletalMeshComponent* TargetMesh);
 	void SetupMesh(USkeletalMeshComponent* TargetMesh);
-	void AttachIndividualActor(USkeletalMeshComponent* TargetMesh, FName BoneID, FName ActorID, UBlueprintGeneratedClass* ActorClass, const FRotator& Rotation, TMap<FName, AActor*>& ActorMap);
-	void AttachWeapons(USkeletalMeshComponent* TargetMesh);
-	void AttachArmors(USkeletalMeshComponent* TargetMesh);
+	void AttachIndividualActor(USkeletalMeshComponent* TargetMesh, FName BoneID, FName ActorID, UBlueprintGeneratedClass* ActorClass, const FRotator&
+	                           Rotation);
+	//void AttachWeapons(USkeletalMeshComponent* TargetMesh);
+	void AttachEquip(USkeletalMeshComponent* TargetMesh);
+	//void AttachArmors(USkeletalMeshComponent* TargetMesh);
 
 	void AttackCall(bool isFiring);
 	void ResetWeaponRotations();
@@ -130,6 +134,7 @@ private:
 	TMap<E_PartsCode, int32> BodyPartIndex;
 	TWeakObjectPtr<UTGCGameInstance> MyGameInstance;
 	TWeakObjectPtr<ATGGameMode> MyGameMode;
+	
 	TMap<FName, AActor*> WeaponMap;
 	TMap<FName, AActor*> ArmourMap;
 	UFUNCTION()
@@ -145,5 +150,6 @@ public:
 private:
 	FVector OriginalCameraOffset;
 	FVector TargetCameraOffset;
-	float InterpSpeed = 5.0f;	
+	float InterpSpeed = 5.0f;
+	
 };

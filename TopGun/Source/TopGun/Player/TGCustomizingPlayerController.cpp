@@ -2,16 +2,14 @@
 #include "TGCustomizingPlayerController.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
-#include "Armour/TGBaseArmour.h"
+#include "Equip/TGBaseArmour.h"
 #include "Camera/CameraComponent.h"
 #include "Components/ScrollBox.h"
-#include "Blueprint/UserWidget.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "Math/Vector.h"
 #include "Engine/World.h"
-#include "Weapon/TGBaseWeapon.h"
-#include "Character/TGCustomizingCharacterBase.h"
+#include "Equip/TGBaseWeapon.h"
 
 ATGCustomizingPlayerController::ATGCustomizingPlayerController()
 {
@@ -28,7 +26,6 @@ void ATGCustomizingPlayerController::BeginPlay()
     if (ACharacter* MyCharacter = GetCharacter())
     {
         MyCharacter->SetActorEnableCollision(false);
-        //TEMP
         MyCustomizingComponent = MyCharacter->FindComponentByClass<UTGCustomizingComponent>();
         if (!MyCustomizingComponent)
         {
@@ -99,7 +96,7 @@ void ATGCustomizingPlayerController::HandleIdleState()
 void ATGCustomizingPlayerController::HandleDragState()
 {
     UpdateWeaponActorPosition();
-    if (MyCustomizingComponent->IsWeaponNearBone())
+    if (MyCustomizingComponent->IsEquipNearBone())
     {
         EnterSnappedState();
     }
@@ -302,15 +299,15 @@ void ATGCustomizingPlayerController::StopMouseDrag()
 
 void ATGCustomizingPlayerController::TryFindRotatingTargetActor()
 {
-    ATGBaseWeapon* HitWeapon = Cast<ATGBaseWeapon>(FindTargetActorUnderMouse());
-    if (!HitWeapon)
-    {
+    TWeakObjectPtr<AActor> HitActor (FindTargetActorUnderMouse());
+    if(!HitActor->Implements<UTGBaseEquipmentInterface>()){
+
         UE_LOG(LogTemp, Warning, TEXT("No actor found under mouse."));
         return;
     }
-    if (MyCustomizingComponent->SetCurrentRotationSelectedActor(HitWeapon))
+    if (MyCustomizingComponent->SetCurrentRotationSelectedActor(HitActor.Get()))
     {
-        UE_LOG(LogTemp, Warning, TEXT("Entered Rotate State with actor: %s"), *HitWeapon->GetName());
+        UE_LOG(LogTemp, Warning, TEXT("Entered Rotate State with actor: %s"), *HitActor.Get()->GetName());
         EnterRotateState();
     }
     else
@@ -348,13 +345,15 @@ AActor* ATGCustomizingPlayerController::FindTargetActorUnderMouse() const
 
 void ATGCustomizingPlayerController::RemoveActorInDesiredPosition()
 {
+    if(!FindTargetActorUnderMouse()->Implements<UTGBaseEquipmentInterface>())
+    {
+        return;
+    }
     ATGBaseWeapon* HitWeapon = Cast<ATGBaseWeapon>(FindTargetActorUnderMouse());
     if(HitWeapon)
-        MyCustomizingComponent->RemoveWeaponFromCharacter(HitWeapon);
-
-    ATGBaseArmour* HitArmour = Cast<ATGBaseArmour>(FindTargetActorUnderMouse());
-    if(HitArmour)
-        MyCustomizingComponent->RemoveArmourFromCharacter(HitArmour, HitArmour->BoneID);
+    {
+        MyCustomizingComponent->RemoveEquipFromCharacter(HitWeapon);
+    }
 }
 
 void ATGCustomizingPlayerController::OnClickEscape()
@@ -406,7 +405,7 @@ void ATGCustomizingPlayerController::AddWeaponButtonToPanel(UScrollBox* TargetPa
 {
     if (MyCustomizingComponent)
     {
-        MyCustomizingComponent->GenerateWeaponButtons(TargetPanel);
+        MyCustomizingComponent->GenerateEquipButtons(TargetPanel, ETGEquipmentCategory::Weapon);
     } else
     {
         UE_LOG(LogTemp, Log, TEXT("AddWeaponButtonToPanel: CustomizingComponent null"));
@@ -428,7 +427,7 @@ void ATGCustomizingPlayerController::AddArmourButtonToPanel(UScrollBox* TargetPa
 {
     if (MyCustomizingComponent)
     {
-        MyCustomizingComponent->GenerateArmourButtons(TargetPanel);
+        MyCustomizingComponent->GenerateEquipButtons(TargetPanel, ETGEquipmentCategory::Armour);
     }
     else
     {
@@ -436,6 +435,38 @@ void ATGCustomizingPlayerController::AddArmourButtonToPanel(UScrollBox* TargetPa
     }
 }
 
+void ATGCustomizingPlayerController::OnEquipSelect(FName WeaponID)
+{
+    if (MyCustomizingComponent)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Entering OnEquipSelected with state: %d"), static_cast<int32>(CurrentState));
+
+        EnterIdleState();
+        
+        if (MyCustomizingComponent->CurrentSpawnedActor)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Destroying CurrentSpawnedActor"));
+            MyCustomizingComponent->CurrentSpawnedActor->Destroy();
+            MyCustomizingComponent->CurrentSpawnedActor = nullptr;  // Reset the pointer after destruction
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CurrentSpawnedActor already null."));
+        }
+
+        MyCustomizingComponent->SpawnCurrentEquip(WeaponID);
+        UE_LOG(LogTemp, Log, TEXT("Setting Button for EquipID: %s"), *WeaponID.ToString());
+        EnterDragState();
+        UE_LOG(LogTemp, Log, TEXT("Completed OnWeaponSelected, state: %d"), static_cast<int32>(CurrentState));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("CustomizingComponent is not valid."));
+    }
+}
+
+
+/*
 void ATGCustomizingPlayerController::OnWeaponSelected(FName WeaponID)
 {
     if (MyCustomizingComponent)
@@ -455,7 +486,7 @@ void ATGCustomizingPlayerController::OnWeaponSelected(FName WeaponID)
             UE_LOG(LogTemp, Warning, TEXT("CurrentSpawnedActor already null."));
         }
 
-        MyCustomizingComponent->SpawnCurrentWeapon(WeaponID);
+        MyCustomizingComponent->Sp(WeaponID);
         EnterDragState();
         UE_LOG(LogTemp, Log, TEXT("Completed OnWeaponSelected, state: %d"), static_cast<int32>(CurrentState));
     }
@@ -494,7 +525,7 @@ void ATGCustomizingPlayerController::OnArmourSelected(FName ArmourID)
         UE_LOG(LogTemp, Error, TEXT("CustomizingComponent is not valid."));
     }
 }
-
+*/
 
 void ATGCustomizingPlayerController::OnModuleSelected(FName WeaponID)
 {
