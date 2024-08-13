@@ -20,15 +20,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data Assets")
 	class UDataTable* EquipDataTable;
-	
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data Assets")
-	//class UTGWeaponDataAsset* WeaponDataAsset;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data Assets")
 	class UTGModuleDataAsset* ModuleDataAsset;
-	
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data Assets")
-	//class UTGArmoursDataAsset* ArmourDataAsset;
 	
 	UPROPERTY(BlueprintReadWrite, Category = "Score")
 	int32 PlayerScore;

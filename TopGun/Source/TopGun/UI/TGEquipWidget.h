@@ -17,7 +17,7 @@ class TOPGUN_API UTGEquipWidget : public UUserWidget
 
 public:
 	UFUNCTION(BlueprintCallable)
-	void SetupButton(FName EquipName);
+	void SetupButton(FName EquipName, int32 PointProperty);
 	UPROPERTY(BlueprintReadOnly)
 	FName EquipID;
 protected:

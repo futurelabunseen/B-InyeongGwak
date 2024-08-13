@@ -29,10 +29,6 @@ void UTGCustomizingComponent::BeginPlay()
 		FGenericPlatformMisc::RequestExit(false);
 		return;
 	}
-
-	//EquipDataAsset = TWeakObjectPtr<UDataTable>(MyGameInstance->());
-	//WeaponDataAsset = TWeakObjectPtr<UTGWeaponDataAsset>(MyGameInstance->WeaponDataAsset);
-	//ArmourDataAsset = TWeakObjectPtr<UTGArmoursDataAsset>(MyGameInstance->ArmourDataAsset);
 	ModuleDataAsset = TWeakObjectPtr<UTGModuleDataAsset>(MyGameInstance->ModuleDataAsset);
 	
 	AActor* Owner = GetOwner();
@@ -52,15 +48,6 @@ void UTGCustomizingComponent::BeginPlay()
 			UE_LOG(LogTemp, Error, TEXT("Owner is not a valid customizing character."));
 		}
 	}
-	
-	/*
-	if (!WeaponDataAsset.IsValid() || !ModuleDataAsset.IsValid())
-	{
-		UE_LOG(LogTemp, Error, TEXT("DataAsset is null."));
-		FGenericPlatformMisc::RequestExit(false);
-		return;
-	}
-	*/
 }
 
 USkeletalMesh* UTGCustomizingComponent::GetMergedCharacterParts(const TMap<E_PartsCode, FName>& WholeModuleData, TWeakObjectPtr<UTGModuleDataAsset> ModuleDataAsset)
@@ -68,23 +55,6 @@ USkeletalMesh* UTGCustomizingComponent::GetMergedCharacterParts(const TMap<E_Par
 	return UTGModuleSystem::GetMergeCharacterParts(WholeModuleData, ModuleDataAsset.Get());
 }
 
-
-/*
-UBlueprintGeneratedClass* UTGCustomizingComponent::GetWeaponClassById(FName WeaponID, class UTGWeaponDataAsset* WeaponDataAsset)
-{
-	if (!WeaponDataAsset) return nullptr;
-	UBlueprintGeneratedClass** FoundWeaponClass = WeaponDataAsset->BaseWeaponClasses.Find(WeaponID);
-	return FoundWeaponClass ? *FoundWeaponClass : nullptr;
-}
-
-UBlueprintGeneratedClass* UTGCustomizingComponent::GetArmourClassById(FName ArmourID,
-	UTGArmoursDataAsset* ArmourDataAsset)
-{
-	if (!ArmourDataAsset) return nullptr;
-	UBlueprintGeneratedClass** FoundArmourClass = ArmourDataAsset->BaseArmourClass.Find(ArmourID);
-	return FoundArmourClass ? *FoundArmourClass : nullptr;
-}
-*/
 
 void UTGCustomizingComponent::GenerateEquipButtonProcessEquipRow(const FName& Key, UScrollBox* TargetPanel) const
 {
@@ -97,7 +67,7 @@ void UTGCustomizingComponent::GenerateEquipButtonProcessEquipRow(const FName& Ke
 
 	if (auto* InventoryButton = Cast<UTGEquipWidget>(CreatedWidget))
 	{
-		InventoryButton->SetupButton(Key);
+		InventoryButton->SetupButton(Key, MyGameInstance->GetEquipmentManager()->GetEquipPointsByID(Key));
 	}
 	else
 	{
@@ -125,6 +95,7 @@ void UTGCustomizingComponent::GenerateEquipButtons(UScrollBox* TargetPanel, ETGE
 		GenerateEquipButtonProcessEquipRow(Pair.Key, TargetPanel);
 	}
 }
+
 
 void UTGCustomizingComponent::GenerateModuleButtons(UScrollBox* TargetPanel) const
 {
@@ -243,6 +214,7 @@ bool UTGCustomizingComponent::AttachActor() const
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to register equipment."));
 	}
+	
 	if (!ClonedActor)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to spawn cloned actor."));
@@ -287,6 +259,7 @@ void UTGCustomizingComponent::RemoveEquipFromCharacter(AActor* EquipToRemove) co
 		EquipToRemove = nullptr;
 	}
 }
+
 
 void UTGCustomizingComponent::UpdateWeaponActorPosition(const FVector& WorldLocation, const FVector& WorldDirection) const
 {
@@ -358,15 +331,36 @@ bool UTGCustomizingComponent::SnapActor(FVector ClosestBoneLocation, float Close
 	return true;
 }
 
+void UTGCustomizingComponent::HighlightSelectedActor(bool bEnable)
+{
+	if (bIsHighlighted == bEnable)
+		return;
 
+	bIsHighlighted = bEnable;
+
+	if (!CurrentSpawnedActor)
+		return;
+
+	TArray<UMeshComponent*> MeshComponents;
+	CurrentSpawnedActor->GetComponents<UMeshComponent>(MeshComponents);
+    
+	for (UMeshComponent* MeshComp : MeshComponents)
+	{
+		if (MeshComp)
+		{
+			MeshComp->SetRenderCustomDepth(bEnable);
+			MeshComp->SetCustomDepthStencilValue(bEnable ? 1 : 0);
+		}
+	}
+}
 
 void UTGCustomizingComponent::SaveRotationData() const
 {
-		const FName TargetID = ITGBaseEquipmentInterface::Execute_GetBoneID(CurrentRotationSelectedActor);
+		const FName TargetID = ITGBaseEquipmentInterface::Execute_GetBoneID(CurrentSelectedActor);
 		FAttachedActorData FoundActorData;
-		if (MyGameInstance->GetEquipmentManager()->GetEquipActorData(MyGameInstance->GetEquipmentManager()->GetKeyForActor(CurrentRotationSelectedActor), FoundActorData))
+		if (MyGameInstance->GetEquipmentManager()->GetEquipActorData(MyGameInstance->GetEquipmentManager()->GetKeyForActor(CurrentSelectedActor), FoundActorData))
 		{
-			FoundActorData.Rotation = CurrentRotationSelectedActor->GetActorRotation();
+			FoundActorData.Rotation = CurrentSelectedActor->GetActorRotation();
 			MyGameInstance->GetEquipmentManager()->SetEquipActorData(MyGameInstance->GetEquipmentManager()->GetKeyForActor(CurrentSpawnedActor), FoundActorData);
 		}
 		else
@@ -382,23 +376,23 @@ void UTGCustomizingComponent::ResetHoldingData()
 		CurrentSpawnedActor->Destroy();
 		CurrentTargetBone = FName();
 		CurrentSpawnedActor = nullptr;
-		CurrentRotationSelectedActor = nullptr;
+		CurrentSelectedActor = nullptr;
 	}
 }
 
 void UTGCustomizingComponent::SetTargetActorRotation(FQuat Rotation) const
 {
-	if(CurrentRotationSelectedActor)
+	if(CurrentSelectedActor)
 	{
-		CurrentRotationSelectedActor->AddActorLocalRotation(Rotation, false, nullptr, ETeleportType::None);
+		CurrentSelectedActor->AddActorLocalRotation(Rotation, false, nullptr, ETeleportType::None);
 	}
 }
 
-bool UTGCustomizingComponent::SetCurrentRotationSelectedActor(AActor* TargetActor)
+bool UTGCustomizingComponent::SetCurrentSelectedActor(AActor* TargetActor)
 {
 	if(TargetActor)
 	{
-		CurrentRotationSelectedActor = TargetActor;
+		CurrentSelectedActor = TargetActor;
 		return true;
 	} else
 	{
@@ -406,11 +400,22 @@ bool UTGCustomizingComponent::SetCurrentRotationSelectedActor(AActor* TargetActo
 	}
 }
 
+AActor* UTGCustomizingComponent::GetCurrentSelectedActor() const
+{
+	if(CurrentSelectedActor)
+	{
+		return CurrentSelectedActor;
+	} else
+	{
+		return nullptr;
+	}
+}
+
 void UTGCustomizingComponent::DrawDebugHighlight() const
 {
-	if (CurrentRotationSelectedActor)
+	if (CurrentSelectedActor)
 	{
-		FVector ActorLocation = CurrentRotationSelectedActor->GetActorLocation();
+		FVector ActorLocation = CurrentSelectedActor->GetActorLocation();
 		float SphereRadius = 2.0f; 
 		FColor SphereColor = FColor::Red; 
 		DrawDebugSphere(GetWorld(), ActorLocation, SphereRadius, 12, SphereColor, false, -1.0f, 0, 2.0f);

@@ -5,9 +5,11 @@
 #include "EnhancedInputSubsystems.h"
 #include "TGPlayerControlData.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/WidgetComponent.h"
 #include "GameInstance/TGGameInstance.h"
 #include "Interface/TGArmourInterface.h"
 #include "Interface/TGWeaponInterface.h"
+#include "Player/TGCustomizingPlayerController.h"
 #include "UI/TGGameOverWidget.h"
 #include "UI/TGWaveBarWidget.h"
 #include "Utility/TGCharacterStatComponent.h"
@@ -71,7 +73,26 @@ void ATGCharacterPlayer::BeginPlay()
     TargetCameraOffset = OriginalCameraOffset + FVector(0.0f, 0.0f, 100.0f);
     SetupPlayerModel(GetMesh());
 
-   // HpBar->SetVisibility(false);
+    APlayerController* PlayerController = Cast<APlayerController>(GetController());
+    if (PlayerController)
+    {
+        TSoftObjectPtr<UUserWidget> HUDWidget = CreateWidget<UUserWidget>(PlayerController, PlayerHUDTemplate);
+        if (HUDWidget.IsValid())
+        {
+            HUDWidget->AddToViewport();
+            HUDWidget->SetVisibility(ESlateVisibility::Visible);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to create HUD Widget."));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to get PlayerController."));
+    }
+
+  
 }
 
 void ATGCharacterPlayer::SetCharacterControl() const
@@ -92,8 +113,7 @@ void ATGCharacterPlayer::SetupPlayerModel(USkeletalMeshComponent* TargetMesh)
 {
     SetupMesh(TargetMesh);
     AttachEquip(TargetMesh);
-    //AttachWeapons(TargetMesh);
-    //AttachArmors(TargetMesh);
+
 }
 
 void ATGCharacterPlayer::SetupMesh(USkeletalMeshComponent* TargetMesh)
@@ -118,31 +138,46 @@ void ATGCharacterPlayer::SetupMesh(USkeletalMeshComponent* TargetMesh)
 }
 
 
-void ATGCharacterPlayer::AttachIndividualActor(USkeletalMeshComponent* TargetMesh, FName BoneID, FName ActorID, UBlueprintGeneratedClass* ActorClass, const FRotator& Rotation)
+void ATGCharacterPlayer::AttachIndividualActor(USkeletalMeshComponent* TargetMesh, FEquipmentKey TargetKey, FAttachedActorData TargetInfo)
 {
-    AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(ActorClass, FVector::ZeroVector, FRotator::ZeroRotator);
-    if (!ClonedActor || !ClonedActor->Implements<UTGBaseEquipmentInterface>())
+    NumPadInputActions.SetNum(ValidKeys.Num());
+    for (int32 i = 0; i < ValidKeys.Num(); ++i)
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to spawn actor for ID: %s"), *ActorID.ToString());
+        NumPadInputActions[i] = NewObject<UInputAction>(this);
+    }
+    
+    UE_LOG(LogTemp, Error, TEXT("Failed to spawn actor for Equipment"), *TargetKey.BoneID.ToString());
+    UBlueprintGeneratedClass* EquipClass = MyGameInstance->GetEquipmentManager()->GetEquipClassByID(*TargetKey.ActorID.ToString());
+    if (!EquipClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("EquipClass is null for Equipment"));
         return;
     }
-        USpringArmComponent* ActorSpringArm = NewObject<USpringArmComponent>(this, USpringArmComponent::StaticClass());
-    ActorSpringArm->SetupAttachment(TargetMesh, BoneID);
-    ActorSpringArm->TargetArmLength = 0.5f;
-    ActorSpringArm->bUsePawnControlRotation = false;
-    ActorSpringArm->RegisterComponent();
-
-    ClonedActor->AttachToComponent(ActorSpringArm, FAttachmentTransformRules::SnapToTargetIncludingScale);
-    ClonedActor->SetActorRotation(Rotation);
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    AActor* ClonedActor = GetWorld()->SpawnActor<AActor>(EquipClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+    if (!ClonedActor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to spawn actor for Equipment"));
+        return;
+    }
+    ClonedActor->AttachToComponent(TargetMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, TargetKey.BoneID);
+    ClonedActor->SetActorRotation(TargetInfo.Rotation);
     ClonedActor->SetActorEnableCollision(false);
-
-    ITGBaseEquipmentInterface::Execute_InitializeEquipment(ClonedActor, BoneID, ActorID);
-    ITGBaseEquipmentInterface::Execute_SetSpringArmComponent(ClonedActor, ActorSpringArm);
-
+    if(!ClonedActor->Implements<UTGBaseEquipmentInterface>())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to cast to UTGEquipInterface for actor: %s"), *ClonedActor->GetName());
+        ClonedActor->Destroy();
+        FPlatformMisc::RequestExit(false);
+        return;
+    }
+    ITGBaseEquipmentInterface::Execute_SetEquipmentID(ClonedActor, TargetKey.ActorID);
+    ITGBaseEquipmentInterface::Execute_SetBoneID(ClonedActor, TargetKey.BoneID);
+    
     if(ClonedActor->Implements<UTGWeaponInterface>())
-       WeaponMap.Add(BoneID, ClonedActor);
+       WeaponMap.Add(ClonedActor, TargetInfo.KeyMapping);
     if(ClonedActor->Implements<UTGArmourInterface>())
-        ArmourMap.Add(BoneID, ClonedActor);
+        ArmourMap.Add(ClonedActor, TargetInfo.KeyMapping);
 }
 
 
@@ -162,10 +197,11 @@ void ATGCharacterPlayer::AttachEquip(USkeletalMeshComponent* TargetMesh)
             continue;
         }
 
-        AttachIndividualActor(TargetMesh, Elem.Key.BoneID, Elem.Key.ActorID, TempEquipClass, Elem.Value.Rotation);
+        AttachIndividualActor(TargetMesh, Elem.Key, Elem.Value);
     }
     
 }
+
 
 
 
@@ -184,7 +220,42 @@ void ATGCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputC
     EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Started, this, &ATGCharacterPlayer::AimCameraStart);
     EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::AimCameraEnd);
     EnhancedInputComponent->BindAction(BoostAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Boost);
+    
+    TArray<FKey> ValidKeysArray = ValidKeys.Array();
+    if (NumPadInputActions.Num() != ValidKeysArray.Num())
+    {
+        UE_LOG(LogTemp, Error, TEXT("NumPadInputActions count (%d) does not match ValidKeysArray count (%d)"), 
+               NumPadInputActions.Num(), ValidKeysArray.Num());
+        return; 
+    }
+
+    for (int32 i = 0; i < ValidKeysArray.Num(); ++i)
+    {
+        if (NumPadInputActions[i])
+        {
+            EnhancedInputComponent->BindAction(NumPadInputActions[i], ETriggerEvent::Triggered, this, 
+                &ATGCharacterPlayer::ProcessWeaponSelectionWrapper, ValidKeysArray[i]);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("NumPadInputActions[%d] is null"), i);
+        }
+    }
+
+    for (int32 i = 0; i < ValidKeysArray.Num(); ++i)
+    {
+        EnhancedInputComponent->BindAction(NumPadInputActions[i], ETriggerEvent::Triggered, this, 
+            &ATGCharacterPlayer::ProcessWeaponSelectionWrapper, ValidKeysArray[i]);
+    }
 }
+
+void ATGCharacterPlayer::ProcessWeaponSelectionWrapper(const FInputActionValue& Value, FKey PressedKey)
+{
+    UE_LOG(LogTemp, Log, TEXT("ProcessWeaponSelectionWrapper:: weapon changed to: %s"), *PressedKey.ToString());
+    ProcessWeaponSelection(PressedKey);
+}
+
+
 
 void ATGCharacterPlayer::Move(const FInputActionValue& Value)
 {
@@ -264,16 +335,16 @@ void ATGCharacterPlayer::PrepareForLevelTransition()
 
     for (auto& Elem : WeaponMap)
     {
-        if (Elem.Value)
+        if (Elem.Key)
         {
-            Elem.Value->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+            Elem.Key->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
         }
     }
     for (auto& Elem : ArmourMap)
     {
-        if (Elem.Value)
+        if (Elem.Key)
         {
-            Elem.Value->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+            Elem.Key->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
         }
     }
 
@@ -311,34 +382,47 @@ void ATGCharacterPlayer::AttackEnd()
 void ATGCharacterPlayer::AttackCall(bool isFiring)
 {
     UE_LOG(LogTemp, Log, TEXT("Calling FireWeapon"));
-    if(WeaponMap.IsEmpty())
+    
+    if (WeaponMap.IsEmpty())
     {
         UE_LOG(LogTemp, Log, TEXT("Weapon Pool Empty"));
+        return;
     }
-    
-    for (const auto& Elem : WeaponMap)
+
+    if (CurrentSelectedWeapon == TEXT("Zero"))
     {
-        UE_LOG(LogTemp, Log, TEXT("ITerating"));
-        if (AActor* WeaponActor = Elem.Value)
+        for (const auto& Elem : WeaponMap)
         {
-            if (WeaponActor->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()))
-            {
-                UE_LOG(LogTemp, Log, TEXT("Calling FireWeapon on %s"), *WeaponActor->GetName());
-                ITGWeaponInterface::Execute_FunctionFireWeapon(WeaponActor, isFiring, bIsAiming, true, FollowCamera);
-                UE_LOG(LogTemp, Log, TEXT("Weapon fired successfully."));
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("Weapon does not implement the IWeaponInterface."));
-            }
+            FireWeapon(Elem.Key, isFiring);
         }
-        else
+    }
+    else
+    {
+        for (const auto& Elem : WeaponMap)
         {
-            UE_LOG(LogTemp, Warning, TEXT("Invalid weapon actor."));
+            if (Elem.Value == CurrentSelectedWeapon)
+            {
+                FireWeapon(Elem.Key, isFiring);
+                break;
+            }
         }
     }
 }
 
+
+void ATGCharacterPlayer::FireWeapon(AActor* WeaponActor, bool isFiring)
+{
+    if (WeaponActor && WeaponActor->GetClass()->ImplementsInterface(UTGWeaponInterface::StaticClass()))
+    {
+        UE_LOG(LogTemp, Log, TEXT("Calling FireWeapon on %s"), *WeaponActor->GetName());
+        ITGWeaponInterface::Execute_FunctionFireWeapon(WeaponActor, isFiring, bIsAiming, true, FollowCamera);
+        UE_LOG(LogTemp, Log, TEXT("Weapon fired successfully."));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Invalid weapon actor or does not implement the IWeaponInterface."));
+    }
+}
 
 
 
@@ -356,16 +440,13 @@ void ATGCharacterPlayer::SetWeaponRotations()
 {
     for (auto& Elem : WeaponMap)
     {
-        if (AActor* WeaponActor = Elem.Value)
+        if (AActor* WeaponActor = Elem.Key)
         {
             if(WeaponActor->Implements<UTGWeaponInterface>() && WeaponActor->Implements<UTGBaseEquipmentInterface>())
             {
                 USpringArmComponent* WeaponSpringArm = ITGBaseEquipmentInterface::Execute_GetSpringArmComponent(WeaponActor);
                 FQuat TargetRotation = ITGWeaponInterface::Execute_GetAimingRotation(WeaponActor, GetScreenAimingPointVector());
                 WeaponActor->SetActorRotation(TargetRotation);
-            } else
-            {
-                UE_LOG(LogTemp, Error, TEXT("Weapon Does not Implement Interface: %s"), *Elem.Key.ToString());
             }
         }
     }
@@ -375,13 +456,13 @@ void ATGCharacterPlayer::ResetWeaponRotations()
 {
     for (const auto& Elem : WeaponMap)
     {
-        if (AActor* WeaponActor = Elem.Value)
+        if (AActor* WeaponActor = Elem.Key)
         {
             if(WeaponActor->Implements<UTGWeaponInterface>())
             {
                  USpringArmComponent* WeaponSpringArm = ITGWeaponInterface::Execute_GetSpringArmComponent(WeaponActor);
                  FQuat DefaultQuatRotation = ITGWeaponInterface::Execute_GetDefaultRoationQuat(WeaponActor);
-                WeaponActor->SetActorRotation(DefaultQuatRotation);
+                WeaponActor->SetActorRelativeRotation(DefaultQuatRotation);
 
             }
         }
@@ -495,6 +576,16 @@ void ATGCharacterPlayer::SetUpGameOverWidget(UTGUserWidget* InUserWidget)
     if (GameOverWidget)
     {
         Stat->OnZeroScore.AddUObject(GameOverWidget, &UTGGameOverWidget::UpdateScore);
+    }
+}
+
+
+void ATGCharacterPlayer::ProcessWeaponSelection(FKey PressedKey)
+{
+    if (ValidKeys.Contains(PressedKey) && PressedKey != CurrentSelectedWeapon)
+    {
+        CurrentSelectedWeapon = PressedKey;
+        UE_LOG(LogTemp, Log, TEXT("Selected weapon changed to: %s"), *PressedKey.ToString());
     }
 }
 

@@ -5,11 +5,13 @@
 
 #include "Components/TextBlock.h"
 
-void UTGEquipWidget::SetupButton(FName EquipName)
+void UTGEquipWidget::SetupButton(FName EquipName, int32 PointProperty)
 {
 	if (TitleText)
 	{
 		TitleText->SetText(FText::FromName(EquipName));
 		EquipID = EquipName;
 	}
+
+	PropertyText->SetText(FText::AsNumber(PointProperty));
 }

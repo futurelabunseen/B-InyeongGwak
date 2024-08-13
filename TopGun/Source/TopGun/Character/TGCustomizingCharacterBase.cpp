@@ -5,10 +5,8 @@
 #include "GameInstance/TGGameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/TGStatWidget.h"
-#include "Utility/TGArmoursDataAsset.h"
 #include "Utility/TGCustomizingComponent.h"
 #include "Utility/TGModuleDataAsset.h"
-#include "Equip/TGBaseWeapon.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "HAL/IConsoleManager.h"
 #include "Interface/TGArmourInterface.h"
@@ -82,7 +80,7 @@ void ATGCustomizingCharacterBase::SetupEquip(USkeletalMeshComponent* TargetMesh)
 
 bool ATGCustomizingCharacterBase::SpawnEquip(USkeletalMeshComponent* TargetMesh, const FName& EquipID, const FName& BoneID, const FRotator& Rotation) const
 {
-        UE_LOG(LogTemp, Error, TEXT("Failed to spawn actor for Equipment"), *EquipID.ToString());
+    UE_LOG(LogTemp, Error, TEXT("Failed to spawn actor for Equipment"), *EquipID.ToString());
     UBlueprintGeneratedClass* EquipClass = MyGameInstance->GetEquipmentManager()->GetEquipClassByID(EquipID);
     if (!EquipClass)
     {

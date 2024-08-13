@@ -66,27 +66,7 @@ void UTGCGameInstance::OnMonsterDeath()
 	UE_LOG(LogTemp, Log, TEXT("Player Score: %d"), PlayerScore);
 }
 
-template<typename T>
-bool GetClassPropertyValue(const UObject* Object, const FName PropertyName, T& OutValue)
-{
-    if (!Object)
-    {
-        return false;
-    }
 
-    UClass* Class = Object->GetClass();
-    FProperty* Property = Class->FindPropertyByName(PropertyName);
-    if (Property && Property->IsA<FNumericProperty>())
-    {
-        FNumericProperty* NumericProperty = CastField<FNumericProperty>(Property);
-        if (NumericProperty->IsInteger())
-        {
-            OutValue = NumericProperty->GetSignedIntPropertyValue(NumericProperty->ContainerPtrToValuePtr<void>(Object));
-            return true;
-        }
-    }
-    return false;
-}
 
 
 

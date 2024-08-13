@@ -10,6 +10,11 @@
 /**
  * 
  */
+static const TSet<FKey> ValidKeys = {
+	EKeys::Zero, EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four,
+	EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine
+};
+
 
 USTRUCT(BlueprintType)
 struct FEquipmentKey
@@ -79,14 +84,17 @@ public:
 	void SetEquipActorData(const FEquipmentKey& Key, const FAttachedActorData& ActorData);
 	bool GetEquipActorData(const FEquipmentKey& Key, FAttachedActorData& OutActorData) const;
 	bool RemoveFromEquipActorsMap(const FEquipmentKey& Key);
-	int32 GetEquipmentStats(FName ActorID) const;
 	void CalculateStatsForEquip(int32& OutTotalPoints, ETGEquipmentCategory Category) const;
 	void BroadcastTotalStats() const;
 	void SetEquipDataAsset(UDataTable* Data);
 	void CalculateTotalStats(int32& OutTotalAttack, int32& OutTotalDefense) const;
 	TArray<TPair<FName, FEquipmentData>> GetEquipmentDataForCategory(ETGEquipmentCategory category) const;
 	UBlueprintGeneratedClass* GetEquipClassByID(FName EquipID) const;
+	int32 GetEquipPointsByID(FName EquipID) const;
 	static FEquipmentKey GetKeyForActor(AActor* ClonedActor);
+	void BindKeyToEquipment(const FEquipmentKey& EquipKey, FName KeyName);
+	AActor* GetEquipmentByKeyBinding(FName KeyName) const;
+	void UnbindKey(FName KeyName);
 	void EmptyEquipMap();
 	TMap<FEquipmentKey , FAttachedActorData> GetEntireAttachedEquipActorMap();
 

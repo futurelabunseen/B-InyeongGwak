@@ -13,5 +13,6 @@ UCLASS()
 class TOPGUN_API ATGPlayerController : public APlayerController
 {
 	GENERATED_BODY()
-	
+public:
+
 };

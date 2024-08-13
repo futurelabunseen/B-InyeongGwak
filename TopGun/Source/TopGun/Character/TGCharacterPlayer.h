@@ -8,6 +8,8 @@
 #include "Game/TGGameMode.h"
 #include "TopGun/Utility/TGModulesystem.h"
 #include "GameInstance/TGGameInstance.h"
+#include "Player/TGCustomizingPlayerController.h"
+#include "Utility/TGEquipmentManager.h"
 #include "Utility/TGFlyingComponent.h"
 
 #include "TGCharacterPlayer.generated.h"
@@ -41,13 +43,11 @@ protected:
 	void SetCharacterControl() const;
 	void SetupPlayerModel(USkeletalMeshComponent* TargetMesh);
 	void SetupMesh(USkeletalMeshComponent* TargetMesh);
-	void AttachIndividualActor(USkeletalMeshComponent* TargetMesh, FName BoneID, FName ActorID, UBlueprintGeneratedClass* ActorClass, const FRotator&
-	                           Rotation);
-	//void AttachWeapons(USkeletalMeshComponent* TargetMesh);
+	void AttachIndividualActor(USkeletalMeshComponent* TargetMesh, FEquipmentKey TargetKey, FAttachedActorData TargetInfo);
 	void AttachEquip(USkeletalMeshComponent* TargetMesh);
-	//void AttachArmors(USkeletalMeshComponent* TargetMesh);
-
+	
 	void AttackCall(bool isFiring);
+	void FireWeapon(AActor* WeaponActor, bool isFiring);
 	void ResetWeaponRotations();
 	void SetWeaponRotations();
 
@@ -67,7 +67,8 @@ protected:
 	// Character Control Section
 public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-	
+	void ProcessWeaponSelectionWrapper(const FInputActionValue& Value, FKey PressedKey);
+
 	UFUNCTION(BlueprintCallable)
 	void SwitchScene();
 	void PrepareForLevelTransition();
@@ -80,7 +81,13 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void SetUpGameOverWidget(UTGUserWidget* InUserWidget);
-
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UIWidget")
+	TSubclassOf<UUserWidget> PlayerHUDTemplate;
+	
+	//Key Binding
+	UFUNCTION()
+	void ProcessWeaponSelection(FKey PressedKey);
 	
 protected:
 	void ChangeCharacterControl();
@@ -127,16 +134,24 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Input, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UInputAction> AimAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Input, Meta = (AllowPrivateAccess = "true"))
+	TArray<TObjectPtr<class UInputAction>> NumPadInputActions;
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = State, Meta = (AllowPrivateAccess = "true"))
 	bool bIsAiming = false;
 
+	
+	
+private:
+	FKey CurrentSelectedWeapon = EKeys::Zero;
+	
 private:
 	TMap<E_PartsCode, int32> BodyPartIndex;
 	TWeakObjectPtr<UTGCGameInstance> MyGameInstance;
 	TWeakObjectPtr<ATGGameMode> MyGameMode;
 	
-	TMap<FName, AActor*> WeaponMap;
-	TMap<FName, AActor*> ArmourMap;
+	TMap<AActor*, FName> WeaponMap;
+	TMap<AActor*, FName> ArmourMap;
 	UFUNCTION()
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
 	UFUNCTION()
