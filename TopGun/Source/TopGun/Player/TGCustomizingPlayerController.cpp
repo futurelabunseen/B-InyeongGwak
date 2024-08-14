@@ -2,7 +2,6 @@
 #include "TGCustomizingPlayerController.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
-#include "Equip/TGBaseArmour.h"
 #include "Camera/CameraComponent.h"
 #include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
@@ -10,18 +9,38 @@
 #include "GameFramework/PlayerController.h"
 #include "Math/Vector.h"
 #include "Engine/World.h"
-#include "Equip/TGBaseWeapon.h"
+#include "Interface/TGCustomizingInterface.h"
+#include "Utility/TGCustomizationHandlingManager.h"
 #include "Utility/TGEquipmentManager.h"
 
 ATGCustomizingPlayerController::ATGCustomizingPlayerController()
 {
-    CurrentState = ECustomizingState::Idle;
     bIsDragging = false;
+}
+
+UTGCustomizationHandlingManager* ATGCustomizingPlayerController::GetMyCustomizingComponent()
+{
+    return MyCustomizingComponent.Get();
+}
+
+void ATGCustomizingPlayerController::SetCustomizingStateManager(ITGCustomizingInterface* CustomizingStateInterface, TWeakObjectPtr<UTGCustomizationHandlingManager> CustomizingComponent, TWeakObjectPtr<UTGCustomizingUIManager> CustomizingUIManager)
+{
+    MyCustomizingStateManagerInterface = CustomizingStateInterface;
+    MyCustomizingComponent = CustomizingComponent;
+    MyCustimizingUIManager = CustomizingUIManager;
+    UE_LOG(LogTemp, Log, TEXT("SetCustomizingStateManager "));
+
 }
 
 void ATGCustomizingPlayerController::BeginPlay()
 {
     Super::BeginPlay();
+
+    if(!MyCustomizingComponent.IsValid())
+    {
+        UE_LOG(LogTemp, Log, TEXT("GetMyCustomizingComponent return was null "));
+    }
+    
     EquipmentManager = Cast<UTGCGameInstance>(GetGameInstance())->GetEquipmentManager();
     
     PrimaryActorTick.bCanEverTick = true;
@@ -29,14 +48,8 @@ void ATGCustomizingPlayerController::BeginPlay()
     if (ACharacter* MyCharacter = GetCharacter())
     {
         MyCharacter->SetActorEnableCollision(false);
-        MyCustomizingComponent = MyCharacter->FindComponentByClass<UTGCustomizingComponent>();
-        if (!MyCustomizingComponent)
-        {
-            UE_LOG(LogTemp, Error, TEXT("CustomizingComponent is not found."));
-            FGenericPlatformMisc::RequestExit(false);
-            return;
-        }
     }
+    
     bShowMouseCursor = true;
     bEnableClickEvents = true;
     bEnableMouseOverEvents = true;
@@ -59,32 +72,44 @@ void ATGCustomizingPlayerController::BeginPlay()
         DefaultCameraOffset = MainCamera->GetRelativeLocation();
         CurrentCameraOffset = DefaultCameraOffset;
     }
-
-    CurrentInventoryWidget = CreateWidget<UUserWidget>(this, InventoryWidgetTemplate);
-    if (CurrentInventoryWidget)
+    
+    if (TSoftObjectPtr<UUserWidget> CurrentInventoryWidget = CreateWidget<UUserWidget>(this, InventoryWidgetTemplate))
     {
         CurrentInventoryWidget->AddToViewport();
         CurrentInventoryWidget->SetVisibility(ESlateVisibility::Visible);
     }
 }
 
+void ATGCustomizingPlayerController::BindNotationUpdatedEvent(UTextBlock* NotationTextBlock)
+{
+    if (NotationTextBlock)
+    {
+        OnNotationUpdated.AddDynamic(NotationTextBlock, &UTextBlock::SetText);
+    } else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("BindNotationUpdatedEvent(UTextBlock* NotationTextBlock)::NotationTextBlock NULL"));
+
+    }
+}
+
+UTGCustomizingUIManager* ATGCustomizingPlayerController::GetCustomizingUIManager()
+{
+    if(MyCustimizingUIManager.IsValid())
+        return MyCustimizingUIManager.Get();
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GetCustomizingUIManager::MyCustimizingUIManager NULL"));
+        return nullptr;
+    }
+}
+
+
 void ATGCustomizingPlayerController::ProcessPlayerInput(float DeltaTime, bool bGamePaused)
 {
     Super::ProcessPlayerInput(DeltaTime, bGamePaused);
-
-    if (CurrentState == ECustomizingState::OnBindKey)
+    if(MyCustomizingStateManagerInterface)
     {
-        TArray<FKey> AllKeys;
-        EKeys::GetAllKeys(AllKeys);
-
-        for (const FKey& Key : AllKeys)
-        {
-            if (Key != EKeys::AnyKey && WasInputKeyJustPressed(Key))
-            {
-                HandleKeyBindingInput(Key);
-                break;
-            }
-        }
+        MyCustomizingStateManagerInterface->HandleProcessPlayerInput(this);
     }
 }
 
@@ -92,18 +117,29 @@ void ATGCustomizingPlayerController::OnPressKeyBindingEquipment()
 {
     UE_LOG(LogTemp, Log, TEXT("Try Entering key binding state"));
 
-    if (CurrentState == ECustomizingState::OnSelectActor)
+    if (MyCustomizingStateManagerInterface)
     {
-        EnterBindKeyState();
-        UE_LOG(LogTemp, Log, TEXT("Entered key binding state"));
+        MyCustomizingStateManagerInterface->HandleOnPressKeyBindingEquipment();
     }
 }
 
-void ATGCustomizingPlayerController::EnterBindKeyState()
+void ATGCustomizingPlayerController::OnPressEnterRotateEquipment()
 {
-    CurrentState = ECustomizingState::OnBindKey;
-    UE_LOG(LogTemp, Log, TEXT("Entered key binding state"));
+    if (MyCustomizingStateManagerInterface)
+    {
+        MyCustomizingStateManagerInterface->HandleOnPressEnterRotateEquipment();
+    }
 }
+
+
+void ATGCustomizingPlayerController::OnPressReturnToIdleState()
+{
+    if(MyCustomizingStateManagerInterface)
+    {
+        MyCustomizingStateManagerInterface->ReturnToIdleState(this);
+    }
+}
+
 
 bool ATGCustomizingPlayerController::IsValidKeyForBinding(const FKey& Key) const
 {
@@ -112,25 +148,9 @@ bool ATGCustomizingPlayerController::IsValidKeyForBinding(const FKey& Key) const
 
 void ATGCustomizingPlayerController::HandleKeyBindingInput(const FKey& Key)
 {
-    if (IsValidKeyForBinding(Key))
+    if(MyCustomizingStateManagerInterface)
     {
-        UE_LOG(LogTemp, Log, TEXT("Key pressed for binding: %s"), *Key.ToString());
-        
-        AActor* CurrentWeapon = MyCustomizingComponent->GetCurrentSelectedActor();
-        if (CurrentWeapon)
-        {
-            FEquipmentKey EquipKey = UTGEquipmentManager::GetKeyForActor(CurrentWeapon);
-            EquipmentManager->BindKeyToEquipment(EquipKey, Key.GetFName());
-            
-            FString NotationText = FString::Printf(TEXT("Weapon %s bound to key %s"), *CurrentWeapon->GetName(), *Key.ToString());
-            UE_LOG(LogTemp, Log, TEXT("%s"), *NotationText);
-            UpdateNotationUI(NotationText);
-        }
-        ReturnToSelectActorState();
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Invalid key for weapon binding: %s"), *Key.ToString());
+        MyCustomizingStateManagerInterface->HandleKeyBindingInput(Key);
     }
 }
 
@@ -180,24 +200,11 @@ bool ATGCustomizingPlayerController::IsInputKeyDown(const FKey& Key) const
 }
 
 
-
-
-
 void ATGCustomizingPlayerController::OnPressDeleteEquipmentAction()
 {
-    switch (CurrentState)
+    if (MyCustomizingStateManagerInterface)
     {
-    case ECustomizingState::Idle:
-        break;
-    case ECustomizingState::OnDragActor:
-        break;
-    case ECustomizingState::OnSnappedActor:
-        break;
-    case ECustomizingState::OnSelectActor:
-        RemoveActorInDesiredPosition();
-        break;
-    case ECustomizingState::OnRotateEquip:
-        break;
+        MyCustomizingStateManagerInterface->HandleOnPressDeleteEquipmentAction(this);
     }
 }
 
@@ -205,158 +212,18 @@ void ATGCustomizingPlayerController::OnPressDeleteEquipmentAction()
 void ATGCustomizingPlayerController::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
-    UpdateState();
-    
-}
-
-void ATGCustomizingPlayerController::UpdateState()
-{
-    switch (CurrentState)
+    if(MyCustomizingStateManagerInterface)
     {
-    case ECustomizingState::Idle:
-        HandleIdleState();
-        break;
-    case ECustomizingState::OnDragActor:
-        HandleDragState();
-        break;
-    case ECustomizingState::OnSnappedActor:
-        HandleSnappedState();
-        break;
-    case ECustomizingState::OnSelectActor:
-        HandleSelectActorState();
-        break;
-    case ECustomizingState::OnRotateEquip:
-        HandleRotateState();
-        break;
-    case ECustomizingState::OnBindKey:
-        HandleBindKeyState();
-        break;
+        MyCustomizingStateManagerInterface->UpdateState(this);
     }
-}
-
-void ATGCustomizingPlayerController::HandleIdleState()
-{
-    // Logic for idle state
-}
-
-void ATGCustomizingPlayerController::HandleDragState()
-{
-    UpdateEquipActorPosition();
-    if (MyCustomizingComponent->IsEquipNearBone())
-    {
-        EnterSnappedState();
-    }
-}
-
-void ATGCustomizingPlayerController::HandleSnappedState()
-{
-    CheckSnappedCancellation();
-}
-
-void ATGCustomizingPlayerController::HandleRotateState()
-{
-    //MyCustomizingComponent->DrawDebugHighlight();
-}
-
-void ATGCustomizingPlayerController::HandleBindKeyState()
-{
-}
-
-void ATGCustomizingPlayerController::EnterIdleState()
-{
-    MyCustomizingComponent->HighlightSelectedActor(false);
-    CurrentState = ECustomizingState::Idle;
-}
-
-void ATGCustomizingPlayerController::EnterDragState()
-{
-    CurrentState = ECustomizingState::OnDragActor;
-}
-
-void ATGCustomizingPlayerController::EnterSnappedState()
-{
-    CurrentState = ECustomizingState::OnSnappedActor;
-}
-
-void ATGCustomizingPlayerController::EnterRotateState()
-{
-    CurrentState = ECustomizingState::OnRotateEquip;
-}
-
-void ATGCustomizingPlayerController::ReturnToIdleState()
-{
-    switch (CurrentState)
-    {
-    case ECustomizingState::Idle:
-        break;
-    case ECustomizingState::OnDragActor:
-        break;
-    case ECustomizingState::OnSnappedActor:
-        break;
-    case ECustomizingState::OnSelectActor:
-        ReturnToDefaultCamera();
-        if(CurrentWeaponToolWidget)
-            CurrentWeaponToolWidget->SetVisibility(ESlateVisibility::Hidden);
-        MyCustomizingComponent->SaveRotationData();
-        ClearNotationUI();
-        break;
-    case ECustomizingState::OnRotateEquip:
-        ReturnToDefaultCamera();
-        if(CurrentWeaponToolWidget)
-            CurrentWeaponToolWidget->SetVisibility(ESlateVisibility::Hidden);
-        MyCustomizingComponent->SaveRotationData();
-        ClearNotationUI();
-        break;
-    case ECustomizingState::OnBindKey:
-        ReturnToDefaultCamera();
-        if(CurrentWeaponToolWidget)
-            CurrentWeaponToolWidget->SetVisibility(ESlateVisibility::Hidden);
-        ClearNotationUI();
-        break;
-    }
-    MyCustomizingComponent->ResetHoldingData();
-    EnterIdleState();
-}
-
-void ATGCustomizingPlayerController::EnterSelectActorState()
-{
-    CurrentState = ECustomizingState::OnSelectActor;
-    ClearCurrentEquipment();
-    if(CurrentWeaponToolWidget) 
-        CurrentWeaponToolWidget->SetVisibility(ESlateVisibility::Visible);
-
-    if(MyCustomizingComponent->GetCurrentSelectedActor())
-        SwitchToZoomedCamera(MyCustomizingComponent->GetCurrentSelectedActor());
-    
-    MyCustomizingComponent->HighlightSelectedActor(true);
-}
-
-void ATGCustomizingPlayerController::ReturnToSelectActorState()
-{
-    CurrentState = ECustomizingState::OnSelectActor;
-}
-
-void ATGCustomizingPlayerController::HandleSelectActorState()
-{
-    //To be added
 }
 
 
 void ATGCustomizingPlayerController::OnRotateAction(const FInputActionValue& Value)
 {
-    switch (CurrentState)
-    {
-    case ECustomizingState::Idle:
-    case ECustomizingState::OnDragActor:
-    case ECustomizingState::OnSnappedActor:
-        OnRotateCharacter(Value);
-    case ECustomizingState::OnRotateEquip:
-    case ECustomizingState::OnSelectActor:
-        OnRotateCameraZoom(Value);
-        
-        break;
+    if(MyCustomizingStateManagerInterface){
+        MyCustomizingStateManagerInterface->HandleRotateAction(Value);
     }
-    
 }
 
 void ATGCustomizingPlayerController::OnRotateCameraZoom(const FInputActionValue& Value)
@@ -364,8 +231,26 @@ void ATGCustomizingPlayerController::OnRotateCameraZoom(const FInputActionValue&
    
 }
 
+void ATGCustomizingPlayerController::FindTargetActor(AActor* CurrentWeapon, const FKey& Key)
+{
+    if (CurrentWeapon)
+    {
+        FEquipmentKey EquipKey = UTGEquipmentManager::GetKeyForActor(CurrentWeapon);
+        EquipmentManager->BindKeyToEquipment(EquipKey, Key.GetFName());
+            
+        FString NotationText = FString::Printf(TEXT("Weapon %s bound to key %s"), *CurrentWeapon->GetName(), *Key.ToString());
+        UE_LOG(LogTemp, Log, TEXT("%s"), *NotationText);
 
+        UpdateNotationUI(NotationText);
+    }
+}
 
+void ATGCustomizingPlayerController::UpdateNotationUI(const FString& NewText)
+{
+    CurrentNotation = NewText;
+    UE_LOG(LogTemp, Log, TEXT("ATGCustomizingPlayerController::UpdateNotationUI -> Setting Button for EquipID: %s"), *NewText);
+    OnNotationUpdated.Broadcast(FText::FromString(CurrentNotation));
+}
 
 void ATGCustomizingPlayerController::OnRotateCharacter(const FInputActionValue& Value)
 {
@@ -387,33 +272,13 @@ void ATGCustomizingPlayerController::OnRotateCharacter(const FInputActionValue& 
 }
 
 
-
-void ATGCustomizingPlayerController::OnPressEnterRotateEquipment()
-{
-    if (CurrentState == ECustomizingState::OnSelectActor)
-    {
-        MyCustomizingComponent->HighlightSelectedActor(true);
-        EnterRotateState();
-    } else if (CurrentState == ECustomizingState::OnRotateEquip)
-    {
-        EnterSelectActorState();
-    }
-}
-
-
-void ATGCustomizingPlayerController::OnPressReturnToIdleState()
-{
-    ReturnToIdleState();
-}
-
-
-
 void ATGCustomizingPlayerController::OnEnterAction()
 {
-    if (MyCustomizingComponent && MyCustomizingComponent->MyGameInstance.IsValid())
+    if (MyCustomizingComponent.IsValid())
     {
-        MyCustomizingComponent->MyGameInstance->ChangeLevel(TargetLevelName);
-        MyCustomizingComponent->EndPlay(EEndPlayReason::LevelTransition);
+        UTGCGameInstance* GameInstance = Cast<UTGCGameInstance>(GetWorld()->GetGameInstance());
+        GameInstance->ChangeLevel(TargetLevelName);
+        GetPawn()->EndPlay(EEndPlayReason::LevelTransition);
     }
 }
 
@@ -450,67 +315,27 @@ void ATGCustomizingPlayerController::OnRotateEquipment()
     }
 }
 
-void ATGCustomizingPlayerController::BindNotationUpdatedEvent(UTextBlock* NotationTextBlock)
-{
-    if (NotationTextBlock)
-    {
-        OnNotationUpdated.AddDynamic(NotationTextBlock, &UTextBlock::SetText);
-    } else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("BindNotationUpdatedEvent(UTextBlock* NotationTextBlock)::NotationTextBlock NULL"));
 
-    }
-}
 
 void ATGCustomizingPlayerController::OnClickRightMouse()
 {
-    switch (CurrentState)
+    if(MyCustomizingStateManagerInterface)
     {
-    case ECustomizingState::Idle:
-        //RemoveActorInDesiredPosition();
-        break;
-    case ECustomizingState::OnDragActor:
-    case ECustomizingState::OnSnappedActor:
-    case ECustomizingState::OnSelectActor:
-        ReturnToIdleState();
-    case ECustomizingState::OnRotateEquip:
-        ReturnToIdleState();
-        break;
+        MyCustomizingStateManagerInterface->HandleRightMouseClick(this);
+        StartMouseDrag();
     }
 }
 
 void ATGCustomizingPlayerController::OnClickLeftMouse()
 {
-    switch (CurrentState)
-    {
-    case ECustomizingState::Idle:
-        TryFindSelectActor();
-        break;
-    case ECustomizingState::OnDragActor:
-        break;
-    case ECustomizingState::OnSnappedActor:
-        if (MyCustomizingComponent->AttachActor())
-        {
-            ReturnToIdleState();
-        }
-        break;
-    case ECustomizingState::OnRotateEquip:
-        OnRotateEquipment();
-        break;
+    if(MyCustomizingStateManagerInterface){
+    MyCustomizingStateManagerInterface->HandleLeftMouseClick(this);
     }
 }
 
 void ATGCustomizingPlayerController::MouseLeftClickStarted()
 {
-    switch (CurrentState)
-    {
-    case ECustomizingState::Idle:
-    case ECustomizingState::OnDragActor:
-    case ECustomizingState::OnSnappedActor:
-    case ECustomizingState::OnRotateEquip:
-        StartMouseDrag();
-        break;
-    }
+    StartMouseDrag();
 }
 
 void ATGCustomizingPlayerController::StartMouseDrag()
@@ -521,15 +346,7 @@ void ATGCustomizingPlayerController::StartMouseDrag()
 
 void ATGCustomizingPlayerController::MouseLeftClickEnded()
 {
-    switch (CurrentState)
-    {
-    case ECustomizingState::Idle:
-    case ECustomizingState::OnDragActor:
-    case ECustomizingState::OnSnappedActor:
-    case ECustomizingState::OnRotateEquip:
-        StopMouseDrag();
-        break;
-    }
+    StopMouseDrag();
 }
 
 void ATGCustomizingPlayerController::StopMouseDrag()
@@ -539,21 +356,10 @@ void ATGCustomizingPlayerController::StopMouseDrag()
 
 void ATGCustomizingPlayerController::TryFindSelectActor()
 {
-    TWeakObjectPtr<AActor> HitActor (FindTargetActorUnderMouse());
-    if(!HitActor->Implements<UTGBaseEquipmentInterface>()){
-
-        UE_LOG(LogTemp, Warning, TEXT("No actor found under mouse."));
-        return;
-    }
-    if (MyCustomizingComponent->SetCurrentSelectedActor(HitActor.Get()))
+    if(MyCustomizingStateManagerInterface)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Entered Selected State with actor: %s"), *HitActor.Get()->GetName());
-        EnterSelectActorState();
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Failed to set Selected actor."));
-        return;
+        TWeakObjectPtr<AActor> HitActor(FindTargetActorUnderMouse());
+        MyCustomizingStateManagerInterface->HandleTryFindSelectActor(HitActor.Get());
     }
 }
 
@@ -585,37 +391,21 @@ AActor* ATGCustomizingPlayerController::FindTargetActorUnderMouse() const
 
 void ATGCustomizingPlayerController::RemoveActorInDesiredPosition()
 {
-    if (!MyCustomizingComponent)
-    {
-        UE_LOG(LogTemp, Error, TEXT("RemoveActorInDesiredPosition: MyCustomizingComponent is null"));
-        return;
+    if(MyCustomizingStateManagerInterface){
+        MyCustomizingStateManagerInterface->HandleRemoveActorInDesiredPosition(this);
     }
-
-    AActor* CurrentSelectedActor = MyCustomizingComponent->GetCurrentSelectedActor();
-    if (!CurrentSelectedActor)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("RemoveActorInDesiredPosition: No actor currently selected"));
-        return;
-    }
-
-    if (!CurrentSelectedActor->Implements<UTGBaseEquipmentInterface>())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("RemoveActorInDesiredPosition: Selected actor does not implement TGBaseEquipmentInterface"));
-        return;
-    }
-
-    MyCustomizingComponent->RemoveEquipFromCharacter(CurrentSelectedActor);
-    ReturnToIdleState();
 }
 
 void ATGCustomizingPlayerController::OnClickEscape()
 {
-    ReturnToIdleState();
+    if(MyCustomizingStateManagerInterface){
+        MyCustomizingStateManagerInterface->ReturnToIdleState(this);
+    }
 }
 
 void ATGCustomizingPlayerController::UpdateEquipActorPosition()
 {
-    if (GetPawn() && MyCustomizingComponent)
+    if (GetPawn() && MyCustomizingComponent.IsValid())
     {
         FVector WorldLocation, WorldDirection;
         if (DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
@@ -628,7 +418,7 @@ void ATGCustomizingPlayerController::UpdateEquipActorPosition()
 void ATGCustomizingPlayerController::CheckSnappedCancellation()
 {
     float MouseX, MouseY;
-    if (GetMousePosition(MouseX, MouseY))
+    if (GetMousePosition(MouseX, MouseY) && MyCustomizingStateManagerInterface)
     {
         FVector WorldLocation, WorldDirection;
         if (DeprojectMousePositionToWorld(WorldLocation, WorldDirection))
@@ -636,90 +426,30 @@ void ATGCustomizingPlayerController::CheckSnappedCancellation()
             if (FVector::Distance(MyCustomizingComponent->CurrentSpawnedActor->GetActorLocation(), WorldLocation) > 10)
             {
                 MyCustomizingComponent->UnSnapActor();
-                EnterDragState();
+                MyCustomizingStateManagerInterface->EnterDragState();
             }
         }
     }
 }
 
 
-void ATGCustomizingPlayerController::AddWeaponButtonToPanel(UScrollBox* TargetPanel)
+
+void ATGCustomizingPlayerController::ClearCurrentEquipment()
 {
-    if (MyCustomizingComponent)
+    if (!MyCustomizingComponent.Get())
     {
-        MyCustomizingComponent->GenerateEquipButtons(TargetPanel, ETGEquipmentCategory::Weapon);
-    } else
-    {
-        UE_LOG(LogTemp, Log, TEXT("AddWeaponButtonToPanel: CustomizingComponent null"));
+        UE_LOG(LogTemp, Warning, TEXT("MyCustomizingComponent is not valid or not loaded."));
+        return;
     }
-}
-
-void ATGCustomizingPlayerController::AddModuleButtonToPanel(UScrollBox* TargetPanel)
-{
-    if (MyCustomizingComponent)
-    {
-        MyCustomizingComponent->GenerateModuleButtons(TargetPanel);
-    } else
-    {
-        UE_LOG(LogTemp, Log, TEXT("AddModuleButtonToPanel: CustomizingComponent null"));
-    }
-}
-
-void ATGCustomizingPlayerController::AddArmourButtonToPanel(UScrollBox* TargetPanel)
-{
-    if (MyCustomizingComponent)
-    {
-        MyCustomizingComponent->GenerateEquipButtons(TargetPanel, ETGEquipmentCategory::Armour);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Log, TEXT("AddArmourButtonToPanel: CustomizingComponent null"));
-    }
-}
-
-void ATGCustomizingPlayerController::OnEquipSelect(FName WeaponID)
-{
-    if (MyCustomizingComponent)
-    {
-        UE_LOG(LogTemp, Log, TEXT("Entering OnEquipSelected with state: %d"), static_cast<int32>(CurrentState));
-
-        EnterIdleState();
-        
-        ClearCurrentEquipment();
-
-        MyCustomizingComponent->SpawnCurrentEquip(WeaponID);
-        UE_LOG(LogTemp, Log, TEXT("Setting Button for EquipID: %s"), *WeaponID.ToString());
-        EnterDragState();
-        UE_LOG(LogTemp, Log, TEXT("Completed OnWeaponSelected, state: %d"), static_cast<int32>(CurrentState));
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("CustomizingComponent is not valid."));
-    }
-}
-
-void ATGCustomizingPlayerController::ClearCurrentEquipment() const
-{
-    if (MyCustomizingComponent->CurrentSpawnedActor)
+    
+    if (MyCustomizingComponent->CurrentSpawnedActor.Get())
     {
         MyCustomizingComponent->CurrentSpawnedActor->Destroy();
-        MyCustomizingComponent->CurrentSpawnedActor = nullptr;  // Reset the pointer after destruction
+        MyCustomizingComponent->CurrentSpawnedActor = nullptr;
     }
     else
     {
         UE_LOG(LogTemp, Warning, TEXT("CurrentSpawnedActor already null."));
-    }
-}
-
-void ATGCustomizingPlayerController::OnModuleSelected(FName WeaponID)
-{
-    if (MyCustomizingComponent)
-    {
-        MyCustomizingComponent->AlterModuleComponent(WeaponID);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("CustomizingComponent is not valid."));
     }
 }
 
@@ -763,22 +493,25 @@ void ATGCustomizingPlayerController::UpdateZoomedCameraPosition()
    
 }
 
-void ATGCustomizingPlayerController::RegisterWeaponSelectButton(UUserWidget* TargetWidget)
-{
-    CurrentWeaponToolWidget = TargetWidget;
-    if(CurrentWeaponToolWidget)
-        CurrentWeaponToolWidget->SetVisibility(ESlateVisibility::Hidden);
-}
-
-void ATGCustomizingPlayerController::UpdateNotationUI(const FString& NewText)
-{
-    CurrentNotation = NewText;
-    UE_LOG(LogTemp, Log, TEXT("ATGCustomizingPlayerController::UpdateNotationUI -> Setting Button for EquipID: %s"), *NewText);
-    OnNotationUpdated.Broadcast(FText::FromString(CurrentNotation));
-}
 
 void ATGCustomizingPlayerController::ClearNotationUI()
 {
     CurrentNotation.Empty();
     OnNotationUpdated.Broadcast(FText::FromString(CurrentNotation));
 }
+
+void ATGCustomizingPlayerController::OnEquipSelect(FName WeaponID)
+{
+    if(MyCustomizingStateManagerInterface)
+        MyCustomizingStateManagerInterface->HandleEquipSelect(WeaponID, this);
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("TGCustomizingPlayerController::OnEquipSelect -MyCustomizingStateManagerInterface is not valid"));
+    }
+}
+
+void ATGCustomizingPlayerController::SetVisibilityCurrentWeaponToolWidget(bool value)
+{
+    MyCustimizingUIManager->ToggleCurrentWeaponToolWidget(value);
+}
+

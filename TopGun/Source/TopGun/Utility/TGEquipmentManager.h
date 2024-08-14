@@ -83,6 +83,7 @@ public:
 	FOnChangeStat OnChangeStat;
 	void SetEquipActorData(const FEquipmentKey& Key, const FAttachedActorData& ActorData);
 	bool GetEquipActorData(const FEquipmentKey& Key, FAttachedActorData& OutActorData) const;
+	
 	bool RemoveFromEquipActorsMap(const FEquipmentKey& Key);
 	void CalculateStatsForEquip(int32& OutTotalPoints, ETGEquipmentCategory Category) const;
 	void BroadcastTotalStats() const;

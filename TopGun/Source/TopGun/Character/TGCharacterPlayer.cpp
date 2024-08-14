@@ -51,7 +51,7 @@ void ATGCharacterPlayer::BeginPlay()
     MyGameInstance = Cast<UTGCGameInstance>(GetGameInstance());
     if (!MyGameInstance.IsValid())
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to cast GameInstance to UTGCGameInstance."));
+        UE_LOG(LogTemp, Error, TEXT("TGCharacterPlayer::Failed to cast GameInstance to UTGCGameInstance."));
         FGenericPlatformMisc::RequestExit(false);
         return;
     }
@@ -63,7 +63,7 @@ void ATGCharacterPlayer::BeginPlay()
     MyGameMode = Cast<ATGGameMode>(GetWorld()->GetAuthGameMode());
     if (!MyGameMode.IsValid())
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to cast GameInstance to UTGCGameInstance."));
+        UE_LOG(LogTemp, Error, TEXT("TGCharacterPlayer::Failed to cast GameMode."));
         FGenericPlatformMisc::RequestExit(false);
         return;
     }
@@ -220,6 +220,8 @@ void ATGCharacterPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputC
     EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Started, this, &ATGCharacterPlayer::AimCameraStart);
     EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &ATGCharacterPlayer::AimCameraEnd);
     EnhancedInputComponent->BindAction(BoostAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::Boost);
+    EnhancedInputComponent->BindAction(EscapeAction, ETriggerEvent::Triggered, this, &ATGCharacterPlayer::ToggleMouseCursor);
+
     
     TArray<FKey> ValidKeysArray = ValidKeys.Array();
     if (NumPadInputActions.Num() != ValidKeysArray.Num())
@@ -255,7 +257,16 @@ void ATGCharacterPlayer::ProcessWeaponSelectionWrapper(const FInputActionValue& 
     ProcessWeaponSelection(PressedKey);
 }
 
-
+void ATGCharacterPlayer::ToggleMouseCursor()
+{
+    APlayerController* PC = Cast<APlayerController>(GetController());
+    if (PC)
+    {
+        PC->bShowMouseCursor = !PC->bShowMouseCursor;
+        PC->bEnableClickEvents = !PC->bEnableClickEvents;
+        PC->bEnableMouseOverEvents = !PC->bEnableMouseOverEvents;
+    }
+}
 
 void ATGCharacterPlayer::Move(const FInputActionValue& Value)
 {

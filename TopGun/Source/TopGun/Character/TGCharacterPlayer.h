@@ -17,6 +17,7 @@
  * 
  */
 
+
 UCLASS()
 class TOPGUN_API ATGCharacterPlayer : public ATGCharacterBase
 {
@@ -68,6 +69,7 @@ protected:
 public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	void ProcessWeaponSelectionWrapper(const FInputActionValue& Value, FKey PressedKey);
+	void ToggleMouseCursor();
 
 	UFUNCTION(BlueprintCallable)
 	void SwitchScene();
@@ -123,7 +125,10 @@ protected:
 	TObjectPtr<class UInputAction> FlyAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
-	class UInputAction* BoostAction;
+	TObjectPtr<class UInputAction> BoostAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UInputAction> EscapeAction;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Input, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UInputAction> SwitchSceneAction;
@@ -149,7 +154,6 @@ private:
 	TMap<E_PartsCode, int32> BodyPartIndex;
 	TWeakObjectPtr<UTGCGameInstance> MyGameInstance;
 	TWeakObjectPtr<ATGGameMode> MyGameMode;
-	
 	TMap<AActor*, FName> WeaponMap;
 	TMap<AActor*, FName> ArmourMap;
 	UFUNCTION()

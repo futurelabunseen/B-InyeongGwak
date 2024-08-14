@@ -5,7 +5,6 @@
 #include "GameInstance/TGGameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/TGStatWidget.h"
-#include "Utility/TGCustomizingComponent.h"
 #include "Utility/TGModuleDataAsset.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "HAL/IConsoleManager.h"
@@ -18,10 +17,13 @@ ATGCustomizingCharacterBase::ATGCustomizingCharacterBase()
     CameraBoom->SetupAttachment(RootComponent);
     CameraBoom->TargetArmLength = 400.0f;
     CameraBoom->bUsePawnControlRotation = true;
+    CameraBoom->bInheritPitch =false;
+    CameraBoom->bInheritRoll =false;
+    CameraBoom->bInheritYaw =false;
+    
     FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
     FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
     FollowCamera->bUsePawnControlRotation = false;
-    CustomizingComponent = CreateDefaultSubobject<UTGCustomizingComponent>(TEXT("CustomizingComponent"));
 
     for (int32 i = 0; i < StaticEnum<E_PartsCode>()->NumEnums() - 1; ++i)
     {
@@ -42,7 +44,7 @@ void ATGCustomizingCharacterBase::SetupCharacterWidget(UTGUserWidget* InUserWidg
     UTGStatWidget* StatWidget = Cast<UTGStatWidget>(InUserWidget);
     if (StatWidget)
     {
-        UE_LOG(LogTemp, Error, TEXT("StatWidget Setting up."));
+        UE_LOG(LogTemp, Log, TEXT("StatWidget Setting up."));
         MyGameInstance->GetEquipmentManager()->OnChangeStat.AddUObject(StatWidget, &UTGStatWidget::UpdateStatBar);
         MyGameInstance->GetEquipmentManager()->BroadcastTotalStats();        
     }
@@ -58,7 +60,7 @@ void ATGCustomizingCharacterBase::BeginPlay()
     MyGameInstance = Cast<UTGCGameInstance>(GetGameInstance());
     if (!MyGameInstance.IsValid())
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to cast GameInstance to UTGCGameInstance."));
+        UE_LOG(LogTemp, Error, TEXT("TGCustomizingCharacter::Failed to cast GameInstance to UTGCGameInstance."));
         FGenericPlatformMisc::RequestExit(false);
         return;
     }
