@@ -97,7 +97,6 @@ private:
     UPROPERTY(EditAnywhere)
     float SnapCheckDistance = 50.0f;
 
-    // 헬퍼 함수: 플레이어로부터 GameInstance 또는 Mesh 컴포넌트를 가져옴
     FORCEINLINE UTGCGameInstance* GetGameInstance(APlayerController* Player) const
     {
         return Cast<UTGCGameInstance>(Player->GetWorld()->GetGameInstance());
