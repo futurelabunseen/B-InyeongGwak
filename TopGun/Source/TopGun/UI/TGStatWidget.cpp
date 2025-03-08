@@ -33,16 +33,15 @@ void UTGStatWidget::NativeConstruct()
 		UE_LOG(LogTemp, Warning, TEXT("HpMaxText could not be found or cast."));
 	}
 	
+
+	
 	ITGCharacterWidgetInterface* CharacterWidget = Cast<ITGCharacterWidgetInterface>(OwningActor);
 	if (CharacterWidget)
 	{
-		UE_LOG(LogTemp, Log, TEXT("CharacterWidget successfully cast to ITGCharacterWidgetInterface."));
 		CharacterWidget->SetupCharacterWidget(this);
 	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("OwningActor could not be cast to ITGCharacterWidgetInterface."));
-	}
+
+	
 }
 
 void UTGStatWidget::UpdateStatBar(int maxhp, int attack)

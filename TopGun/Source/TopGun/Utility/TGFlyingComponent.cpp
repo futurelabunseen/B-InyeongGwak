@@ -37,7 +37,7 @@ void UTGFlyingComponent::BeginPlay()
         CameraBoom = Cast<USpringArmComponent>(OwnerCharacter->GetComponentByClass(USpringArmComponent::StaticClass()));
     }
 
-    FlyingRotation = GetOwner()->GetActorRotation();
+    //FlyingRotation = GetOwner()->GetActorRotation();
 }
 
 void UTGFlyingComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

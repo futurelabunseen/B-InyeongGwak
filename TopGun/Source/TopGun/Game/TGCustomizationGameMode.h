@@ -6,8 +6,6 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "Utility/TGCustomizingStateManager.h" 
-#include "Utility/TGCustomizingComponent.h" 
-#include "Utility/TGCustomizingUIManager.h"
 #include "TGCustomizationGameMode.generated.h"
 
 /**

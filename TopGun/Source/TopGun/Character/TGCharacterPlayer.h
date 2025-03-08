@@ -148,7 +148,7 @@ protected:
 	
 	
 private:
-	FKey CurrentSelectedWeapon = EKeys::Zero;
+	FKey CurrentSelectedWeaponKey = EKeys::Zero;
 	
 private:
 	TMap<E_PartsCode, int32> BodyPartIndex;

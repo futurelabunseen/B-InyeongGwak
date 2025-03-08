@@ -21,11 +21,14 @@ void UTGHpStatBarWidget::NativeConstruct()
 	HpText = Cast<UTextBlock>(GetWidgetFromName(TEXT("PbHpText")));
 	ensure(HpText);
 	
+
+
 	ITGCharacterWidgetInterface* CharacterWidget = Cast<ITGCharacterWidgetInterface>(OwningActor);
 	if (CharacterWidget)
 	{
 		CharacterWidget->SetupCharacterWidget(this);
 	}
+
 	
 }
 

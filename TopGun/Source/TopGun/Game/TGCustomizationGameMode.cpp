@@ -2,8 +2,6 @@
 
 
 #include "Game/TGCustomizationGameMode.h"
-
-#include "Kismet/GameplayStatics.h"
 #include "Player/TGCustomizingPlayerController.h"
 #include "Utility/TGCustomizationHandlingManager.h"
 #include "Utility/TGCustomizingStateManager.h"

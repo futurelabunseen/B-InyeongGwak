@@ -3,4 +3,3 @@
 
 #include "Interface/TGCharacterWidgetInterface.h"
 
-// Add default functionality here for any ITGCharacterWidgetInterface functions that are not pure virtual.

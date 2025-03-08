@@ -37,6 +37,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Widget, Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UWidgetComponent> HpBar;
 	UFUNCTION(BlueprintCallable)
+	
 	virtual void SetupCharacterWidget(class UTGUserWidget* InUserWidget) override;
 	
 	void PlayEffect(TArray<UParticleSystem*> Effect, float Time);

@@ -23,7 +23,9 @@ void UTGWaveBarWidget::NativeConstruct()
 
 	ScoreText = Cast<UTextBlock>(GetWidgetFromName(TEXT("PbScoreText")));
 	ensure(ScoreText);
-
+	
+	
+	
 	ITGCharacterWidgetInterface* CharacterWidget = Cast<ITGCharacterWidgetInterface>(OwningActor);
 	if (CharacterWidget)
 	{

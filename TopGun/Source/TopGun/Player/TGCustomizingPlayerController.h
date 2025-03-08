@@ -90,7 +90,7 @@ private:
     virtual void ReturnToDefaultCamera() override;
     virtual void ClearNotationUI() override;
     virtual void OnRotateCameraZoom(const FInputActionValue& Value) override;
-    virtual void FindTargetActor(AActor* CurrentWeapon, const FKey& Key) override;
+    virtual void FindTargetActorForKeyBind(AActor* CurrentWeapon, const FKey& Key) override;
     
 public:
     UFUNCTION(BlueprintCallable)

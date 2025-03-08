@@ -231,7 +231,7 @@ void ATGCustomizingPlayerController::OnRotateCameraZoom(const FInputActionValue&
    
 }
 
-void ATGCustomizingPlayerController::FindTargetActor(AActor* CurrentWeapon, const FKey& Key)
+void ATGCustomizingPlayerController::FindTargetActorForKeyBind(AActor* CurrentWeapon, const FKey& Key)
 {
     if (CurrentWeapon)
     {

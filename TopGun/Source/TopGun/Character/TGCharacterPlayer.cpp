@@ -5,7 +5,6 @@
 #include "EnhancedInputSubsystems.h"
 #include "TGPlayerControlData.h"
 #include "Components/CapsuleComponent.h"
-#include "Components/WidgetComponent.h"
 #include "GameInstance/TGGameInstance.h"
 #include "Interface/TGArmourInterface.h"
 #include "Interface/TGWeaponInterface.h"
@@ -400,7 +399,7 @@ void ATGCharacterPlayer::AttackCall(bool isFiring)
         return;
     }
 
-    if (CurrentSelectedWeapon == TEXT("Zero"))
+    if (CurrentSelectedWeaponKey == TEXT("Zero"))
     {
         for (const auto& Elem : WeaponMap)
         {
@@ -411,7 +410,7 @@ void ATGCharacterPlayer::AttackCall(bool isFiring)
     {
         for (const auto& Elem : WeaponMap)
         {
-            if (Elem.Value == CurrentSelectedWeapon)
+            if (Elem.Value == CurrentSelectedWeaponKey)
             {
                 FireWeapon(Elem.Key, isFiring);
                 break;
@@ -566,8 +565,6 @@ float ATGCharacterPlayer::TakeDamage(float DamageAmount, FDamageEvent const& Dam
 
 void ATGCharacterPlayer::SetupCharacterWidget(UTGUserWidget* InUserWidget)
 {
-    Super::SetupCharacterWidget(InUserWidget);
-
     UTGWaveBarWidget* WaveWidget = Cast<UTGWaveBarWidget>(InUserWidget);
     if (WaveWidget)
     {
@@ -593,9 +590,9 @@ void ATGCharacterPlayer::SetUpGameOverWidget(UTGUserWidget* InUserWidget)
 
 void ATGCharacterPlayer::ProcessWeaponSelection(FKey PressedKey)
 {
-    if (ValidKeys.Contains(PressedKey) && PressedKey != CurrentSelectedWeapon)
+    if (ValidKeys.Contains(PressedKey) && PressedKey != CurrentSelectedWeaponKey)
     {
-        CurrentSelectedWeapon = PressedKey;
+        CurrentSelectedWeaponKey = PressedKey;
         UE_LOG(LogTemp, Log, TEXT("Selected weapon changed to: %s"), *PressedKey.ToString());
     }
 }

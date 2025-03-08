@@ -36,5 +36,5 @@ public:
 	virtual void OnRotateCharacter(const FInputActionValue& Value) = 0;
 	virtual void OnRotateCameraZoom(const FInputActionValue& Value) = 0;
 	virtual bool IsValidKeyForBinding(const FKey& Key) const = 0;
-	virtual void FindTargetActor(AActor* CurrentWeapon, const FKey& Key) = 0;
+	virtual void FindTargetActorForKeyBind(AActor* CurrentWeapon, const FKey& Key) = 0;
 };
