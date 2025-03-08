@@ -18,9 +18,7 @@ void UTGCustomizingStateManager::SetPlayerController(ITGCustomizingPlayerInterfa
     CurrentState = ECustomizingState::Idle;
 }
 
-//--------------------------------------------------------------------
 // State Update & Transition
-//--------------------------------------------------------------------
 void UTGCustomizingStateManager::UpdateState(APlayerController* Player)
 {
     switch (CurrentState)
@@ -124,9 +122,8 @@ void UTGCustomizingStateManager::ReturnToIdleState(APlayerController* Player)
     EnterIdleState();
 }
 
-//--------------------------------------------------------------------
+
 // Private State Handlers
-//--------------------------------------------------------------------
 void UTGCustomizingStateManager::HandleIdleState()
 {
     // Idle doing nothing honestly.
@@ -161,9 +158,8 @@ void UTGCustomizingStateManager::HandleBindKeyState()
     // TODO
 }
 
-//--------------------------------------------------------------------
+
 // Input Handling
-//--------------------------------------------------------------------
 void UTGCustomizingStateManager::HandleRightMouseClick(APlayerController* Player)
 {
     switch (CurrentState)
