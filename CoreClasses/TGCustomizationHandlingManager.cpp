@@ -11,9 +11,8 @@ UTGCustomizationHandlingManager::UTGCustomizationHandlingManager()
 {
 }
 
-//--------------------------------------------------------------------
 // Customizing Features
-//--------------------------------------------------------------------
+
 USkeletalMesh* UTGCustomizationHandlingManager::GetMergedCharacterParts(const TMap<E_PartsCode, FName>& WholeModuleData, TWeakObjectPtr<UTGModuleDataAsset> ModuleDataAsset)
 {
     return UTGModuleSystem::GetMergeCharacterParts(WholeModuleData, ModuleDataAsset.Get());
@@ -21,12 +20,10 @@ USkeletalMesh* UTGCustomizationHandlingManager::GetMergedCharacterParts(const TM
 
 void UTGCustomizationHandlingManager::GenerateModuleButtons(UScrollBox* TargetPanel) const
 {
-    // 버튼 생성 로직 추가 예정
+    //TODO
 }
 
-//--------------------------------------------------------------------
 // Spawn Functions
-//--------------------------------------------------------------------
 AActor* UTGCustomizationHandlingManager::SpawnEquip(FName EquipID, APlayerController* Player)
 {
     if (!Player) return nullptr;
@@ -136,9 +133,7 @@ void UTGCustomizationHandlingManager::AlterModuleComponent(FName WeaponID, APlay
     }
 }
 
-//--------------------------------------------------------------------
 // Actor Attachment & Registration
-//--------------------------------------------------------------------
 bool UTGCustomizationHandlingManager::AttachActor(APlayerController* Player) const
 {
     if (!Player || !CurrentSpawnedActor.IsValid())
@@ -195,9 +190,8 @@ bool UTGCustomizationHandlingManager::EquipRegister(AActor* ClonedActor, APlayer
     }
 }
 
-//--------------------------------------------------------------------
+
 // Handling Spawned Actor
-//--------------------------------------------------------------------
 void UTGCustomizationHandlingManager::RemoveEquipFromCharacter(AActor* EquipToRemove, APlayerController* Player) const
 {
     if (!EquipToRemove || !Player) return;
@@ -298,9 +292,7 @@ void UTGCustomizationHandlingManager::HighlightSelectedActor(bool bEnable)
     }
 }
 
-//--------------------------------------------------------------------
 // Rotation & Selection
-//--------------------------------------------------------------------
 void UTGCustomizationHandlingManager::SaveRotationData(APlayerController* Player) const
 {
     if (!Player || !CurrentSelectedActor.IsValid())
@@ -357,9 +349,7 @@ AActor* UTGCustomizationHandlingManager::GetCurrentSelectedActor() const
     return (CurrentSelectedActor.IsValid() ? CurrentSelectedActor.Get() : nullptr);
 }
 
-//--------------------------------------------------------------------
 // Debug
-//--------------------------------------------------------------------
 void UTGCustomizationHandlingManager::DrawDebugHighlight() const
 {
     if (CurrentSelectedActor.IsValid())
