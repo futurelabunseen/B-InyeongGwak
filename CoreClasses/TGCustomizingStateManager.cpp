@@ -1,266 +1,168 @@
 #include "TGCustomizingStateManager.h"
-#include "InputActionValue.h"
-#include "TGCustomizationHandlingManager.h"
-#include "Interface/TGBaseEquipmentInterface.h"
+
+#include "AsyncTreeDifferences.h"
 #include "Interface/TGCustomizingPlayerInterface.h"
+#include "Interface/TGBaseEquipmentInterface.h"
+#include "InputActionValue.h"
 
 UTGCustomizingStateManager::UTGCustomizingStateManager()
-    : CustomizingComponent(nullptr)
-    , PlayerControllerInterface(nullptr)
+    : PlayerControllerInterface(nullptr)
     , CurrentState(ECustomizingState::Idle)
 {
 }
 
-void UTGCustomizingStateManager::SetPlayerController(ITGCustomizingPlayerInterface* InPlayerController, TWeakObjectPtr<UTGCustomizationHandlingManager> InCustomizingComponent)
+void UTGCustomizingStateManager::SetPlayerController(
+    ITGCustomizingPlayerInterface* InPlayerController,
+    TWeakObjectPtr<UTGCustomizationHandlingManager> InCustomizingComp
+)
 {
     PlayerControllerInterface = InPlayerController;
-    CustomizingComponent = InCustomizingComponent;
+    CustomizingComponent = InCustomizingComp;
     CurrentState = ECustomizingState::Idle;
 }
 
-// State Update & Transition
+void UTGCustomizingStateManager::HandleCustomizingState(ECustomizingState NewState, APlayerController* Player)
+{
+    switch (NewState)
+    {
+    case ECustomizingState::Idle:         ReturnToIdleState(Player); break;
+    case ECustomizingState::OnDragActor:  EnterDrag(); break;
+    case ECustomizingState::OnSnappedActor: EnterSnapped(); break;
+    case ECustomizingState::OnSelectActor: EnterSelectActor(); break;
+    case ECustomizingState::OnRotateEquip: EnterRotateEquip(); break;
+    case ECustomizingState::OnBindKey:    EnterBindKey(); break;
+    case ECustomizingState::OnClickActor: HandleActorClick(Player); break;
+    default: break;
+
+    }
+
+
+}
+
 void UTGCustomizingStateManager::UpdateState(APlayerController* Player)
 {
     switch (CurrentState)
     {
-        case ECustomizingState::Idle:
-            HandleIdleState();
-            break;
-        case ECustomizingState::OnDragActor:
-            HandleDragState(Player);
-            break;
-        case ECustomizingState::OnSnappedActor:
-            HandleSnappedState();
-            break;
-        case ECustomizingState::OnSelectActor:
-            HandleSelectActorState();
-            break;
-        case ECustomizingState::OnRotateEquip:
-            HandleRotateState();
-            break;
-        case ECustomizingState::OnBindKey:
-            HandleBindKeyState();
-            break;
-        default:
-            break;
+    case ECustomizingState::OnDragActor:  HandleDrag(Player); break;
+    case ECustomizingState::OnSnappedActor: HandleSnapped(); break;
+    default: break;
     }
 }
 
-void UTGCustomizingStateManager::EnterIdleState()
+void UTGCustomizingStateManager::EnterIdle()
 {
     if (CustomizingComponent.IsValid())
-    {
         CustomizingComponent->HighlightSelectedActor(false);
-    }
+
     CurrentState = ECustomizingState::Idle;
 }
 
-void UTGCustomizingStateManager::EnterDragState()
+void UTGCustomizingStateManager::EnterDrag()
 {
     CurrentState = ECustomizingState::OnDragActor;
 }
 
-void UTGCustomizingStateManager::EnterSnappedState()
+void UTGCustomizingStateManager::EnterSnapped()
 {
     CurrentState = ECustomizingState::OnSnappedActor;
 }
 
-void UTGCustomizingStateManager::EnterRotateState()
-{
-    CurrentState = ECustomizingState::OnRotateEquip;
-}
-
-void UTGCustomizingStateManager::EnterSelectActorState()
+void UTGCustomizingStateManager::EnterSelectActor()
 {
     CurrentState = ECustomizingState::OnSelectActor;
-    PlayerControllerInterface->ClearCurrentEquipment();
-    PlayerControllerInterface->SetVisibilityCurrentWeaponToolWidget(true);
-
+    if (PlayerControllerInterface)
+    {
+        PlayerControllerInterface->ClearCurrentSpawnedEquip();
+        PlayerControllerInterface->SetVisibilityCurrentWeaponToolWidget(true);
+    }
     if (CustomizingComponent.IsValid() && CustomizingComponent->GetCurrentSelectedActor())
     {
         PlayerControllerInterface->SwitchToZoomedCamera(CustomizingComponent->GetCurrentSelectedActor());
-    }
-    if (CustomizingComponent.IsValid())
-    {
         CustomizingComponent->HighlightSelectedActor(true);
     }
 }
 
-void UTGCustomizingStateManager::EnterBindKeyState()
+void UTGCustomizingStateManager::EnterRotateEquip()
 {
-    CurrentState = ECustomizingState::OnBindKey;
+    CurrentState = ECustomizingState::OnRotateEquip;
 }
 
-void UTGCustomizingStateManager::ReturnToSelectActorState()
+void UTGCustomizingStateManager::EnterBindKey()
 {
-    CurrentState = ECustomizingState::OnSelectActor;
+    CurrentState = ECustomizingState::OnBindKey;
 }
 
 void UTGCustomizingStateManager::ReturnToIdleState(APlayerController* Player)
 {
     switch (CurrentState)
     {
-        case ECustomizingState::OnSelectActor:
-        case ECustomizingState::OnRotateEquip:
-        case ECustomizingState::OnBindKey:
+    case ECustomizingState::OnSelectActor:
+    case ECustomizingState::OnRotateEquip:
+    case ECustomizingState::OnBindKey:
+        if (PlayerControllerInterface)
+        {
             PlayerControllerInterface->ReturnToDefaultCamera();
             PlayerControllerInterface->SetVisibilityCurrentWeaponToolWidget(false);
-            if (CustomizingComponent.IsValid())
-            {
-                CustomizingComponent->SaveRotationData(Player);
-            }
+        }
+        if (CustomizingComponent.IsValid())
+        {
+            CustomizingComponent->SaveRotationData(Player);
+        }
+        if (PlayerControllerInterface)
+        {
             PlayerControllerInterface->ClearNotationUI();
-            break;
-        default:
-            break;
+        }
+        break;
+    default:
+        break;
     }
 
     if (CustomizingComponent.IsValid())
     {
         CustomizingComponent->ResetHoldingData();
     }
-    EnterIdleState();
+    EnterIdle();
 }
 
 
-// Private State Handlers
-void UTGCustomizingStateManager::HandleIdleState()
-{
-    // Idle doing nothing honestly.
-}
 
-void UTGCustomizingStateManager::HandleDragState(APlayerController* Player)
+void UTGCustomizingStateManager::HandleDrag(APlayerController* Player)
 {
+    if (!PlayerControllerInterface) return;
     PlayerControllerInterface->UpdateEquipActorPosition();
+
     if (CustomizingComponent.IsValid() && CustomizingComponent->IsEquipNearBone(Player))
-    {
-        EnterSnappedState();
-    }
+        EnterSnapped();
 }
 
-void UTGCustomizingStateManager::HandleSnappedState()
+void UTGCustomizingStateManager::HandleSnapped()
 {
-    PlayerControllerInterface->CheckSnappedCancellation();
+    if (PlayerControllerInterface)
+        PlayerControllerInterface->CheckSnappedCancellation();
 }
 
-void UTGCustomizingStateManager::HandleRotateState()
-{
-    // TODO
-}
-
-void UTGCustomizingStateManager::HandleSelectActorState()
-{
-    // TODO
-}
-
-void UTGCustomizingStateManager::HandleBindKeyState()
-{
-    // TODO
-}
-
-
-// Input Handling
-void UTGCustomizingStateManager::HandleRightMouseClick(APlayerController* Player)
+void UTGCustomizingStateManager::HandleActorClick(APlayerController* Player)
 {
     switch (CurrentState)
     {
-        case ECustomizingState::OnDragActor:
-        case ECustomizingState::OnSnappedActor:
-        case ECustomizingState::OnSelectActor:
-        case ECustomizingState::OnRotateEquip:
-            ReturnToIdleState(Player);
-            break;
-        default:
-            break;
-    }
-}
-
-void UTGCustomizingStateManager::HandleLeftMouseClick(APlayerController* Player)
-{
-    switch (CurrentState)
-    {
-        case ECustomizingState::Idle:
-            PlayerControllerInterface->TryFindSelectActor();
-            break;
-        case ECustomizingState::OnSnappedActor:
-            if (CustomizingComponent.IsValid() && CustomizingComponent->AttachActor(Player))
-            {
-                ReturnToIdleState(Player);
-            }
-            break;
-        case ECustomizingState::OnRotateEquip:
-            PlayerControllerInterface->OnRotateEquipment();
-            break;
-        default:
-            break;
-    }
-}
-
-void UTGCustomizingStateManager::HandleEnterRotateEquipment()
-{
-    if (CurrentState == ECustomizingState::OnSelectActor)
-    {
-        if (CustomizingComponent.IsValid())
+    case ECustomizingState::Idle:
+        PlayerControllerInterface->TryFindSelectActor();
+        break;
+    case ECustomizingState::OnSnappedActor:
+        if (CustomizingComponent.IsValid() && CustomizingComponent->AttachActor(Player))
         {
-            CustomizingComponent->HighlightSelectedActor(true);
+            EnterIdle();
         }
-        EnterRotateState();
-    }
-    else if (CurrentState == ECustomizingState::OnRotateEquip)
-    {
-        EnterSelectActorState();
-    }
-}
-
-void UTGCustomizingStateManager::HandleKeyBindingEquipment()
-{
-    if (CurrentState == ECustomizingState::OnSelectActor)
-    {
-        EnterBindKeyState();
+        break;
+    case ECustomizingState::OnRotateEquip:
+        PlayerControllerInterface->OnRotateEquipment();
+        break;
+    default:
+        break;
     }
 }
 
-void UTGCustomizingStateManager::HandleDeleteEquipmentAction(APlayerController* Player)
-{
-    if (CurrentState == ECustomizingState::OnSelectActor && CustomizingComponent.IsValid())
-    {
-        AActor* SelectedActor = CustomizingComponent->GetCurrentSelectedActor();
-        if (SelectedActor && SelectedActor->Implements<UTGBaseEquipmentInterface>())
-        {
-            CustomizingComponent->RemoveEquipFromCharacter(SelectedActor, Player);
-            ReturnToIdleState(Player);
-        }
-    }
-}
 
-void UTGCustomizingStateManager::HandleRotateAction(const FInputActionValue& Value)
-{
-    switch (CurrentState)
-    {
-        case ECustomizingState::Idle:
-        case ECustomizingState::OnDragActor:
-        case ECustomizingState::OnSnappedActor:
-            PlayerControllerInterface->OnRotateCharacter(Value);
-            break;
-        case ECustomizingState::OnRotateEquip:
-        case ECustomizingState::OnSelectActor:
-            PlayerControllerInterface->OnRotateCameraZoom(Value);
-            break;
-        default:
-            break;
-    }
-}
-
-void UTGCustomizingStateManager::HandleEquipSelect(FName WeaponID, APlayerController* Player)
-{
-    EnterIdleState();
-    PlayerControllerInterface->ClearCurrentEquipment();
-    if (CustomizingComponent.IsValid())
-    {
-        CustomizingComponent->SpawnCurrentEquip(WeaponID, Player);
-    }
-    EnterDragState();
-}
 
 void UTGCustomizingStateManager::HandleTryFindSelectActor(AActor* HitActor)
 {
@@ -268,27 +170,36 @@ void UTGCustomizingStateManager::HandleTryFindSelectActor(AActor* HitActor)
     {
         if (CustomizingComponent.IsValid() && CustomizingComponent->SetCurrentSelectedActor(HitActor))
         {
-            EnterSelectActorState();
+            EnterSelectActor();
         }
     }
 }
 
-void UTGCustomizingStateManager::HandleRemoveActorInDesiredPosition(APlayerController* Player)
+void UTGCustomizingStateManager::HandleRotateAction(const FInputActionValue& Value)
 {
-    if (CustomizingComponent.IsValid())
+    if (!PlayerControllerInterface) return;
+
+    switch (CurrentState)
     {
-        AActor* SelectedActor = CustomizingComponent->GetCurrentSelectedActor();
-        if (SelectedActor && SelectedActor->Implements<UTGBaseEquipmentInterface>())
-        {
-            CustomizingComponent->RemoveEquipFromCharacter(SelectedActor, Player);
-            ReturnToIdleState(Player);
-        }
+    case ECustomizingState::Idle:
+    case ECustomizingState::OnDragActor:
+    case ECustomizingState::OnSnappedActor:
+        PlayerControllerInterface->OnRotateCharacter(Value);
+        break;
+    case ECustomizingState::OnSelectActor:
+    case ECustomizingState::OnRotateEquip:
+        PlayerControllerInterface->OnRotateCameraZoom(Value);
+        break;
+    default:
+        break;
     }
 }
+
+
 
 void UTGCustomizingStateManager::HandleProcessPlayerInput(APlayerController* PC)
 {
-    if (CurrentState == ECustomizingState::OnBindKey)
+    if (CurrentState == ECustomizingState::OnBindKey && PC)
     {
         TArray<FKey> AllKeys;
         EKeys::GetAllKeys(AllKeys);
@@ -296,59 +207,46 @@ void UTGCustomizingStateManager::HandleProcessPlayerInput(APlayerController* PC)
         {
             if (Key != EKeys::AnyKey && PC->WasInputKeyJustPressed(Key))
             {
-                HandleKeyBindingInput(Key);
+                if (PlayerControllerInterface && PlayerControllerInterface->IsValidKeyForBinding(Key))
+                {
+                    if (CustomizingComponent.IsValid())
+                    {
+                        AActor* CurEquip = CustomizingComponent->GetCurrentSelectedActor();
+                        PlayerControllerInterface->FindTargetActorForKeyBind(CurEquip, Key);
+                    }
+                    EnterSelectActor();
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Invalid key for weapon binding: %s"), *Key.ToString());
+                }
                 break;
             }
         }
     }
 }
 
-void UTGCustomizingStateManager::HandleKeyBindingInput(const FKey& Key)
+void UTGCustomizingStateManager::HandleEquipSelect(FName WeaponID, APlayerController* Player)
 {
-    if (PlayerControllerInterface->IsValidKeyForBinding(Key))
-    {
-        UE_LOG(LogTemp, Log, TEXT("Key pressed for binding: %s"), *Key.ToString());
-        if (CustomizingComponent.IsValid())
-        {
-            AActor* CurrentWeapon = CustomizingComponent->GetCurrentSelectedActor();
-            PlayerControllerInterface->FindTargetActorForKeyBind(CurrentWeapon, Key);
-        }
-        ReturnToSelectActorState();
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Invalid key for weapon binding: %s"), *Key.ToString());
-    }
+    EnterIdle();
+    PlayerControllerInterface->ClearCurrentSpawnedEquip();
+
+    CustomizingComponent->SpawnCurrentEquip(WeaponID, Player);
+    EnterDrag();
 }
 
-void UTGCustomizingStateManager::HandleOnPressKeyBindingEquipment()
-{
-    if (CurrentState == ECustomizingState::OnSelectActor)
-    {
-        EnterBindKeyState();
-    }
-}
-
-void UTGCustomizingStateManager::HandleOnPressEnterRotateEquipment()
+void UTGCustomizingStateManager::HandleDeleteActor(APlayerController* Player)
 {
     if (CurrentState == ECustomizingState::OnSelectActor)
     {
         if (CustomizingComponent.IsValid())
         {
-            CustomizingComponent->HighlightSelectedActor(true);
+            AActor* CurrentSelectedActor = CustomizingComponent->GetCurrentSelectedActor();
+            if (CurrentSelectedActor && CurrentSelectedActor->Implements<UTGBaseEquipmentInterface>())
+            {
+                CustomizingComponent->RemoveEquipFromCharacter(CurrentSelectedActor, Player);
+                ReturnToIdleState(Player);
+            }
         }
-        EnterRotateState();
-    }
-    else if (CurrentState == ECustomizingState::OnRotateEquip)
-    {
-        EnterSelectActorState();
-    }
-}
-
-void UTGCustomizingStateManager::HandleOnPressDeleteEquipmentAction(APlayerController* Player)
-{
-    if (CurrentState == ECustomizingState::OnSelectActor)
-    {
-        HandleDeleteEquipmentAction(Player);
     }
 }

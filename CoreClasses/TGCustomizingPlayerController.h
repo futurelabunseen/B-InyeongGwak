@@ -1,3 +1,19 @@
+/**
+ * ┌────────────────────────────────────────────────────────────────────────────┐
+ * │ ATGCustomizingPlayerController                                           
+ * │                                                                          
+ * │ Customizing 모드에서의 플레이어 입력과 UI/Camera 제어를 담당합니다.       
+ * │                                                                         
+ * │ 주요 역할:                                                               
+ * │  마우스 입력으로 액터를 선택·드래그·스냅·회전하도록 요청               
+ * │  StateManager(ITGCustomizingInterface) 인터페이스에 상태 전환 전달     
+ * │                                                                          
+ * │ 의존성:                                                                  
+ * │  MyCustomizingStateManagerInterface: 상태 흐름 제어                    
+ * │  MyCustomizingComponent: 스폰·스냅 로직 처리                           
+ * │  MyCustimizingUIManager: UI 업데이트                                   
+ * └────────────────────────────────────────────────────────────────────────────┘
+ */
 #pragma once
 
 #include "CoreMinimal.h"
@@ -20,7 +36,7 @@ class TOPGUN_API ATGCustomizingPlayerController : public APlayerController, publ
 {
     GENERATED_BODY()
 
-public:
+    public:
     ATGCustomizingPlayerController();
 
     DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNotationUpdated, FText, NewNotation);
@@ -45,7 +61,7 @@ protected:
     virtual void SetupInputComponent() override;
     virtual void Tick(float DeltaSeconds) override;
     virtual void ProcessPlayerInput(float DeltaTime, bool bGamePaused) override;
-
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     void OnPressDeleteEquipmentAction();
 
 private:
@@ -59,7 +75,7 @@ private:
     // Equip Attach
     AActor* FindTargetActorUnderMouse() const;
     virtual void TryFindSelectActor() override;
-    virtual void ClearCurrentEquipment() override;
+    virtual void ClearCurrentSpawnedEquip() override;
     virtual void UpdateEquipActorPosition() override;
     virtual void CheckSnappedCancellation() override;
 
@@ -78,10 +94,9 @@ private:
     void StopMouseDrag();
     void OnClickEscape();
     void OnRotateAction(const FInputActionValue& Value);
-    
+
     bool IsInputKeyDown(const FKey& Key) const;
     FKey GetActionPressedKey(const UInputAction* Action) const;
-    void HandleKeyBindingInput(const FKey& Key);
     virtual bool IsValidKeyForBinding(const FKey& Key) const override;
 
     // Camera related
@@ -93,7 +108,6 @@ private:
     virtual void SwitchToZoomedCamera(AActor* FocusActor) override;
     virtual void ReturnToDefaultCamera() override;
     virtual void ClearNotationUI() override;
-    virtual void OnRotateCameraZoom(const FInputActionValue& Value) override;
     virtual void FindTargetActorForKeyBind(AActor* CurrentWeapon, const FKey& Key) override;
 
 public:
@@ -101,7 +115,6 @@ public:
     void OnEnterAction();
     virtual void OnRotateEquipment() override;
 
-public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Input)
     UInputMappingContext* DefaultMappingContext;
 
@@ -147,7 +160,6 @@ public:
 private:
     virtual void SetVisibilityCurrentWeaponToolWidget(bool value) override;
 
-private:
     // Camera state
     FVector DefaultCameraOffset;
     FVector CurrentCameraOffset;
@@ -167,6 +179,6 @@ private:
 
     // Optimization
     UPROPERTY(EditAnywhere, Category = "Performance")
-    float StateUpdateInterval = 0.05f;
+    float StateUpdateInterval = 0.02f;
     float LastStateUpdateTime = 0.f;
 };

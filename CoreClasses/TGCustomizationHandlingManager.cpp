@@ -11,23 +11,25 @@ UTGCustomizationHandlingManager::UTGCustomizationHandlingManager()
 {
 }
 
+
 // Customizing Features
-
-USkeletalMesh* UTGCustomizationHandlingManager::GetMergedCharacterParts(const TMap<E_PartsCode, FName>& WholeModuleData, TWeakObjectPtr<UTGModuleDataAsset> ModuleDataAsset)
+USkeletalMesh* UTGCustomizationHandlingManager::GetMergedCharacterParts(
+    const TMap<E_PartsCode, FName>& WholeModuleData,
+    TWeakObjectPtr<UTGModuleDataAsset> ModuleDataAsset)
 {
-    return UTGModuleSystem::GetMergeCharacterParts(WholeModuleData, ModuleDataAsset.Get());
+    if (ModuleDataAsset.IsValid())
+    {
+        return UTGModuleSystem::GetMergeCharacterParts(WholeModuleData, ModuleDataAsset.Get());
+    }
+    return nullptr;
 }
 
-void UTGCustomizationHandlingManager::GenerateModuleButtons(UScrollBox* TargetPanel) const
-{
-    //TODO
-}
 
 // Spawn Functions
 AActor* UTGCustomizationHandlingManager::SpawnEquip(FName EquipID, APlayerController* Player)
 {
     if (!Player) return nullptr;
-    
+
     UTGCGameInstance* GameInstance = GetGameInstance(Player);
     if (!GameInstance)
     {
@@ -41,7 +43,7 @@ AActor* UTGCustomizationHandlingManager::SpawnEquip(FName EquipID, APlayerContro
         UE_LOG(LogTemp, Error, TEXT("SpawnEquip: EquipmentClass for %s not found."), *EquipID.ToString());
         return nullptr;
     }
-    
+
     FActorSpawnParameters SpawnParameters;
     return Player->GetWorld()->SpawnActor<AActor>(EquipmentClass, SpawnParameters);
 }
@@ -75,15 +77,15 @@ void UTGCustomizationHandlingManager::SpawnCurrentEquip(FName EquipID, APlayerCo
 void UTGCustomizationHandlingManager::SpawnModule(FName WeaponID, APlayerController* Player) const
 {
     if (!Player) return;
-    
+
     UTGCGameInstance* GameInstance = GetGameInstance(Player);
     if (!GameInstance || !GameInstance->ModuleDataAsset)
         return;
 
-    ATGCustomizingCharacterBase* MyCharacter = Cast<ATGCustomizingCharacterBase>(GetWorld()->GetFirstPlayerController()->GetPawn());
+    ATGCustomizingCharacterBase* MyCharacter = Cast<ATGCustomizingCharacterBase>(GetCharacterFromPlayer(Player));
     if (MyCharacter)
     {
-        const FMeshCategoryData* TargetData = GameInstance->ModuleDataAsset->BaseMeshComponent.Find(WeaponID);
+        const FMeshCategoryData* const TargetData = GameInstance->ModuleDataAsset->BaseMeshComponent.Find(WeaponID);
         if (!TargetData)
         {
             UE_LOG(LogTemp, Error, TEXT("SpawnModule: TargetData for %s not found."), *WeaponID.ToString());
@@ -112,11 +114,11 @@ void UTGCustomizationHandlingManager::AlterModuleComponent(FName WeaponID, APlay
     UTGCGameInstance* GameInstance = GetGameInstance(Player);
     if (GameInstance && GameInstance->ModuleDataAsset)
     {
-        ATGCustomizingCharacterBase* MyCharacter = Cast<ATGCustomizingCharacterBase>(GetWorld()->GetFirstPlayerController()->GetPawn());
+        ATGCustomizingCharacterBase* MyCharacter = Cast<ATGCustomizingCharacterBase>(GetCharacterFromPlayer(Player));
         if (!MyCharacter)
             return;
 
-        const FMeshCategoryData* TargetData = GameInstance->ModuleDataAsset->BaseMeshComponent.Find(WeaponID);
+        const FMeshCategoryData* const TargetData = GameInstance->ModuleDataAsset->BaseMeshComponent.Find(WeaponID);
         if (TargetData)
         {
             GameInstance->ModuleBodyPartIndex[TargetData->Category] = WeaponID;
@@ -155,7 +157,9 @@ bool UTGCustomizationHandlingManager::AttachActor(APlayerController* Player) con
 
     if (!EquipRegister(ClonedActor, Player))
     {
-        UE_LOG(LogTemp, Error, TEXT("AttachActor: Failed to register equipment."));
+        UE_LOG(LogTemp, Error, TEXT("AttachActor: Failed to register equipment. Destroying cloned actor."));
+        ClonedActor->Destroy();
+        return false;
     }
 
     return true;
@@ -189,7 +193,6 @@ bool UTGCustomizationHandlingManager::EquipRegister(AActor* ClonedActor, APlayer
         return false;
     }
 }
-
 
 // Handling Spawned Actor
 void UTGCustomizationHandlingManager::RemoveEquipFromCharacter(AActor* EquipToRemove, APlayerController* Player) const
@@ -228,7 +231,7 @@ bool UTGCustomizationHandlingManager::IsEquipNearBone(APlayerController* Player)
 {
     if (!Player || !CurrentSpawnedActor.IsValid())
     {
-        FPlatformMisc::RequestExit(false);
+        UE_LOG(LogTemp, Warning, TEXT("IsEquipNearBone: CurrentSpawnedActor or Player is null."));
         return false;
     }
 
@@ -281,7 +284,7 @@ void UTGCustomizationHandlingManager::HighlightSelectedActor(bool bEnable)
 
     TArray<UMeshComponent*> MeshComponents;
     CurrentSpawnedActor->GetComponents<UMeshComponent>(MeshComponents);
-    
+
     for (UMeshComponent* MeshComp : MeshComponents)
     {
         if (MeshComp)
@@ -320,10 +323,10 @@ void UTGCustomizationHandlingManager::ResetHoldingData()
     if (CurrentSpawnedActor.IsValid())
     {
         CurrentSpawnedActor->Destroy();
-        CurrentTargetBone = FName();
-        CurrentSpawnedActor = nullptr;
-        CurrentSelectedActor = nullptr;
     }
+    CurrentTargetBone = FName();
+    CurrentSpawnedActor = nullptr;
+    CurrentSelectedActor = nullptr;
 }
 
 void UTGCustomizationHandlingManager::SetTargetActorRotation(FQuat Rotation) const
@@ -346,7 +349,16 @@ bool UTGCustomizationHandlingManager::SetCurrentSelectedActor(AActor* TargetActo
 
 AActor* UTGCustomizationHandlingManager::GetCurrentSelectedActor() const
 {
-    return (CurrentSelectedActor.IsValid() ? CurrentSelectedActor.Get() : nullptr);
+    if (CurrentSelectedActor.IsValid())
+    {
+        UE_LOG(LogTemp, Log, TEXT("GetCurrentSelectedActor: %s"), *CurrentSelectedActor->GetName());
+        return CurrentSelectedActor.Get();
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("GetCurrentSelectedActor: null"));
+        return nullptr;
+    }
 }
 
 // Debug

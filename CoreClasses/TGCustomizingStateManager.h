@@ -1,78 +1,87 @@
+/**
+ * ┌────────────────────────────────────────────────────────────────────────────┐
+ * │ UTGCustomizationHandlingManager                                          
+ * │                                                                          
+ * │ Customizing 기능에서 장비를 스폰·삭제·스냅·회전시키는 핵심 로직 담당      
+ * │                                                                          
+ * │ 주요 역할:                                                               
+ * │  ITGBaseEquipmentInterface 구현 액터(장비) 스폰 및 Bone-based 스냅 처리 
+ * │  GameInstance, EquipmentManager와 연동해 장비 정보 관리                
+ * │  플레이어 컨트롤러 또는 StateManager에서 호출되며 실시간 액터 관리      
+ * │                                                                          
+ * │ 의존성:                                                                  
+ * │  UTGCGameInstance: 장비·모듈 데이터 조회                                
+ * │  ITGBaseEquipmentInterface: 장비 액터와의 상호작용       
+ * │       
+ * │  UENUM(BlueprintType)
+ * │        enum class ECustomizingState : uint8
+ * │        {
+ * │	    Idle,
+ * │	    OnDragActor,
+ * │	    OnSnappedActor,
+ * │	    OnSelectActor,
+ * │	    OnRotateEquip,
+ * │	    OnBindKey,
+ * │	    OnClickActor
+ * │        };
+ * │
+ * └────────────────────────────────────────────────────────────────────────────┘
+ */
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UObject/Object.h"
 #include "Interface/TGCustomizingInterface.h"
 #include "Interface/TGCustomizingPlayerInterface.h"
+#include "Data/TGCustomizingTypes.h"
 #include "Utility/TGCustomizationHandlingManager.h"
 #include "TGCustomizingStateManager.generated.h"
 
-class UTGCustomizingComponent;
-class UTGCustomizingUIManager;
-class AActor;
 
-UENUM(BlueprintType)
-enum class ECustomizingState : uint8
-{
-    Idle,
-    OnDragActor,
-    OnSnappedActor,
-    OnSelectActor,
-    OnRotateEquip,
-    OnBindKey,
-};
 
 UCLASS()
-class TOPGUN_API UTGCustomizingStateManager : public UObject, public ITGCustomizingInterface
+class TOPGUN_API UTGCustomizingStateManager
+    : public UObject
+    , public ITGCustomizingInterface
 {
     GENERATED_BODY()
 
-public:
+    public:
     UTGCustomizingStateManager();
 
-    void SetPlayerController(ITGCustomizingPlayerInterface* InPlayerController, TWeakObjectPtr<UTGCustomizationHandlingManager> InCustomizingComponent);
+    void SetPlayerController(
+        ITGCustomizingPlayerInterface* InPlayerController,
+        TWeakObjectPtr<UTGCustomizationHandlingManager> InCustomizingComp
+    );
 
-    // State transition functions!
-    virtual void EnterIdleState() override;
-    virtual void EnterDragState() override;
-    virtual void EnterSnappedState() override;
-    virtual void EnterRotateState() override;
-    virtual void EnterSelectActorState() override;
-    virtual void EnterBindKeyState() override;
-    virtual void ReturnToIdleState(APlayerController* Player) override;
-    virtual void HandleEquipSelect(FName WeaponID, APlayerController* Player) override;
+
+    virtual void HandleCustomizingState(ECustomizingState NewState, APlayerController* Player) override;
     virtual void UpdateState(APlayerController* Player) override;
-    virtual void ReturnToSelectActorState() override;
-
-    virtual void HandleOnPressKeyBindingEquipment() override;
-    virtual void HandleOnPressEnterRotateEquipment() override;
-    virtual void HandleOnPressDeleteEquipmentAction(APlayerController* Player) override;
-    virtual void HandleRightMouseClick(APlayerController* Player) override;
-    virtual void HandleLeftMouseClick(APlayerController* Player) override;
-    virtual void HandleEnterRotateEquipment() override;
-    virtual void HandleKeyBindingEquipment() override;
-    virtual void HandleDeleteEquipmentAction(APlayerController* Player) override;
-    virtual void HandleRotateAction(const FInputActionValue& Value) override;
     virtual void HandleTryFindSelectActor(AActor* HitActor) override;
-    virtual void HandleRemoveActorInDesiredPosition(APlayerController* Player) override;
+    virtual void HandleRotateAction(const FInputActionValue& Value) override;
     virtual void HandleProcessPlayerInput(APlayerController* PC) override;
-    virtual void HandleKeyBindingInput(const FKey& Key) override;
+    virtual void HandleEquipSelect(FName WeaponID, APlayerController* Player) override;
+    virtual void HandleDeleteActor(APlayerController* Player) override;;
+private:
+    void EnterIdle();
+    void EnterDrag();
+    void EnterSnapped();
+    void EnterSelectActor();
+    void EnterRotateEquip();
+    void EnterBindKey();
+    void ReturnToIdleState(APlayerController* Player);
 
-    ECustomizingState GetCurrentState() const { return CurrentState; }
+    void HandleDrag(APlayerController* Player);
+    void HandleSnapped();
+    void HandleActorClick(APlayerController* Player);
 
 private:
-    // Private state handlers!
-    void HandleIdleState();
-    void HandleDragState(APlayerController* Player);
-    void HandleSnappedState();
-    void HandleRotateState();
-    void HandleSelectActorState();
-    void HandleBindKeyState();
-
-    // Member variables!
     UPROPERTY()
     TWeakObjectPtr<UTGCustomizationHandlingManager> CustomizingComponent;
 
     ITGCustomizingPlayerInterface* PlayerControllerInterface;
-
     ECustomizingState CurrentState;
 };
+
+
+

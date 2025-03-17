@@ -1,3 +1,20 @@
+/**
+ * ┌────────────────────────────────────────────────────────────────────────────┐
+ * │ UTGCustomizingStateManager                                               
+ * │                                                                          
+ * │ Customizing 상태 전환과 흐름 제어를 담당합니다.                           
+ * │                                                                          
+ * │ 주요 역할:                                                               
+ * │  ECustomizingState에 따라 액터 이동, 스냅, 로테이션 등의 로직 분기      
+ * │  PlayerControllerInterface와 CustomizingComponent 간 상호작용 조율      
+ * │  Select, Drag, Snapped 등 여러 상태  전환·관리                 
+ * │                                                                          
+ * │ 의존성:                                                                  
+ * │  PlayerControllerInterface: 유저 인풋 및 UI 연동                        
+ * │  CustomizingComponent: 장비 스폰·부착·삭제 기능                         
+ * └────────────────────────────────────────────────────────────────────────────┘
+ */
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -10,16 +27,12 @@ class TOPGUN_API UTGCustomizationHandlingManager : public UObject
 {
     GENERATED_BODY()
 
-public:
+    public:
     UTGCustomizationHandlingManager();
 
     // Customizing Features
     UFUNCTION()
     static USkeletalMesh* GetMergedCharacterParts(const TMap<E_PartsCode, FName>& WholeModuleData, TWeakObjectPtr<UTGModuleDataAsset> ModuleDataAsset);
-
-    UFUNCTION(BlueprintCallable, Category = "Customizing")
-    void GenerateModuleButtons(UScrollBox* TargetPanel) const;
-
     // Spawn Functions
     UFUNCTION(BlueprintCallable, Category = "Customizing")
     AActor* SpawnEquip(FName EquipID, APlayerController* Player);
@@ -97,13 +110,18 @@ private:
     UPROPERTY(EditAnywhere)
     float SnapCheckDistance = 50.0f;
 
-    FORCEINLINE UTGCGameInstance* GetGameInstance(APlayerController* Player) const
+    FORCEINLINE UTGCGameInstance* GetGameInstance(const APlayerController* const Player) const
     {
         return Cast<UTGCGameInstance>(Player->GetWorld()->GetGameInstance());
     }
 
-    FORCEINLINE USkeletalMeshComponent* GetCharacterMesh(APlayerController* Player) const
+    FORCEINLINE USkeletalMeshComponent* GetCharacterMesh(const APlayerController* const Player) const
     {
         return Player->GetCharacter()->GetMesh();
+    }
+
+    FORCEINLINE ACharacter* GetCharacterFromPlayer(const APlayerController* const Player) const
+    {
+        return Player ? Player->GetCharacter() : nullptr;
     }
 };
